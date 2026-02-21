@@ -4,6 +4,7 @@
 
 import axios, { AxiosInstance } from "axios";
 import { Logger, createModuleLogger, LogLevel } from "../logger";
+import { MultiLevelCacheManager } from "../cache/multi-level-cache";
 import type {
   SdkConfig,
   AccessTokenResponse,
@@ -22,10 +23,14 @@ export class AuthManager {
   private tokenInfo: TokenInfo | null = null;
   private httpClient: AxiosInstance;
   private tokenRefreshPromise: Promise<TokenInfo> | null = null;
+  private lastRefreshTime: number = 0;
+  private readonly minRefreshInterval: number = 30 * 1000; // 最小刷新间隔30秒
   private logger: Logger;
   private config: SdkConfig;
   private cacheEnabled: boolean;
   private cacheFilePath: string;
+  private cacheManager?: MultiLevelCacheManager;
+  private cacheManagerInitPromise: Promise<void> | undefined;
 
   constructor(config: SdkConfig) {
     this.config = config;
@@ -100,6 +105,9 @@ export class AuthManager {
     } else {
       this.logger.info("Using cached access token");
     }
+
+    // 异步初始化多级缓存管理器
+    this.cacheManagerInitPromise = this.initializeCacheManager();
   }
 
   private setupInterceptors(): void {
@@ -123,6 +131,12 @@ export class AuthManager {
    * 获取访问令牌
    */
   async getAccessToken(): Promise<string> {
+    // 等待缓存管理器初始化完成
+    if (this.cacheManagerInitPromise) {
+      await this.cacheManagerInitPromise;
+      this.cacheManagerInitPromise = undefined;
+    }
+
     // 如果使用debug token且有效，直接返回
     if (this.isUsingDebugToken() && this.tokenInfo && this.isTokenValid()) {
       this.logger.debug("Using debug token");
@@ -242,6 +256,14 @@ export class AuthManager {
         tokenType: tokenType,
       };
 
+      // 更新最后刷新时间
+      this.lastRefreshTime = Date.now();
+
+      // 保存到多级缓存
+      if (this.cacheManager) {
+        await this.cacheManager.setTokenInfo(this.tokenInfo);
+      }
+
       this.saveTokenToCache();
 
       this.logger.debug("Access token received and stored", {
@@ -270,12 +292,100 @@ export class AuthManager {
   }
 
   /**
+   * 异步初始化多级缓存管理器
+   */
+  private async initializeCacheManager(): Promise<void> {
+    try {
+      // 动态导入RedisCacheAdapter以避免Redis包的编译时依赖
+      const { RedisCacheAdapter } = await import("../cache/redis-adapter");
+      let redisAdapter: any = undefined;
+
+      if (this.config.cacheConfig?.redis?.enabled) {
+        try {
+          if (this.config.cacheConfig.redis.client) {
+            // 使用提供的Redis客户端实例
+            redisAdapter = new RedisCacheAdapter(
+              this.config.cacheConfig.redis.client,
+              this.config.cacheConfig.redis.keyPrefix || "123pan:token:",
+              this.logger,
+            );
+          } else if (this.config.cacheConfig.redis.url) {
+            // 从URL创建Redis客户端
+            const { createClient } = await import("redis");
+            const redisClient = createClient({
+              url: this.config.cacheConfig.redis.url,
+            });
+            await redisClient.connect();
+            redisAdapter = new RedisCacheAdapter(
+              redisClient,
+              this.config.cacheConfig.redis.keyPrefix || "123pan:token:",
+              this.logger,
+            );
+          } else if (
+            this.config.cacheConfig.redis.host &&
+            this.config.cacheConfig.redis.port
+          ) {
+            // 从host和port创建Redis客户端
+            const { createClient } = await import("redis");
+            const redisClient = createClient({
+              socket: {
+                host: this.config.cacheConfig.redis.host,
+                port: this.config.cacheConfig.redis.port,
+              },
+              password: this.config.cacheConfig.redis.password,
+              database: this.config.cacheConfig.redis.db || 0,
+            });
+            await redisClient.connect();
+            redisAdapter = new RedisCacheAdapter(
+              redisClient,
+              this.config.cacheConfig.redis.keyPrefix || "123pan:token:",
+              this.logger,
+            );
+          }
+        } catch (error) {
+          this.logger.warn(
+            "Failed to initialize Redis cache adapter",
+            error as Error,
+          );
+        }
+      }
+
+      this.cacheManager = new MultiLevelCacheManager(
+        {
+          redisAdapter,
+          cacheEnabled: this.cacheEnabled,
+          cacheFilePath: this.cacheFilePath,
+        },
+        this.logger,
+      );
+
+      // 尝试从多级缓存加载token
+      const cachedToken = await this.cacheManager.getTokenInfo();
+      if (cachedToken) {
+        this.tokenInfo = cachedToken;
+        this.logger.info("Token loaded from multi-level cache");
+      }
+    } catch (error) {
+      this.logger.warn(
+        "Failed to initialize multi-level cache manager",
+        error as Error,
+      );
+    }
+  }
+
+  /**
    * 清除token信息
    */
-  clearToken(): void {
+  async clearToken(): Promise<void> {
     this.logger.info("Clearing stored access token");
     this.tokenInfo = null;
     this.tokenRefreshPromise = null;
+
+    // 清除多级缓存
+    if (this.cacheManager) {
+      await this.cacheManager.clearTokenInfo();
+    }
+
     this.deleteCacheFile();
   }
 
@@ -294,6 +404,20 @@ export class AuthManager {
   }
 
   /**
+   * 获取最后刷新时间
+   */
+  getLastRefreshTime(): number {
+    return this.lastRefreshTime;
+  }
+
+  /**
+   * 获取最小刷新间隔
+   */
+  getMinRefreshInterval(): number {
+    return this.minRefreshInterval;
+  }
+
+  /**
    * 检查认证配置是否有效
    */
   isConfigValid(): boolean {
@@ -307,6 +431,38 @@ export class AuthManager {
     this.tokenInfo = null;
     this.tokenRefreshPromise = null;
     return this.getAccessToken();
+  }
+
+  /**
+   * 强制刷新token（带重试机制）
+   */
+  async forceRefreshTokenWithRetry(maxRetries: number = 3): Promise<string> {
+    let lastError: Error | null = null;
+
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        this.logger.info(
+          `Attempting token refresh (attempt ${i + 1}/${maxRetries})`,
+        );
+        await this.forceRefreshToken();
+        const token = await this.getAccessToken();
+        this.logger.info("Token refresh successful");
+        return token;
+      } catch (error) {
+        lastError = error as Error;
+        this.logger.error(`Token refresh attempt ${i + 1} failed`, lastError);
+
+        if (i < maxRetries - 1) {
+          // 等待一段时间再重试，避免过于频繁
+          const delay = Math.min(1000 * Math.pow(2, i), 5000); // 指数退避，最大5秒
+          this.logger.info(`Waiting ${delay}ms before retry`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    this.logger.error(`All ${maxRetries} token refresh attempts failed`);
+    throw lastError || new Error("Token refresh failed");
   }
 
   /**

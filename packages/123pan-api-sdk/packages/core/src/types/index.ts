@@ -32,6 +32,18 @@ export interface SdkConfig {
     enabled?: boolean;
     cacheDir?: string;
     fileName?: string;
+    // Redis缓存配置
+    redis?: {
+      enabled?: boolean;
+      host?: string;
+      port?: number;
+      password?: string;
+      db?: number;
+      keyPrefix?: string;
+      url?: string;
+      // 或者直接使用现有的Redis客户端实例
+      client?: any;
+    };
   };
 }
 

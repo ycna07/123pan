@@ -2,18 +2,21 @@
  * HTTP客户端 - 集成认证和限流功能
  */
 
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { AuthManager } from '../auth/auth-manager';
-import { TokenBucketRateLimiter, createDefaultRateLimiter } from '../utils/rate-limiter';
-import { Logger, createModuleLogger, LogLevel } from '../logger';
-import type { 
-  SdkConfig, 
-  ApiResponse, 
-  ApiError, 
-  RequestConfig, 
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
+import { AuthManager } from "../auth/auth-manager";
+import {
+  TokenBucketRateLimiter,
+  createDefaultRateLimiter,
+} from "../utils/rate-limiter";
+import { Logger, createModuleLogger, LogLevel } from "../logger";
+import type {
+  SdkConfig,
+  ApiResponse,
+  ApiError,
+  RequestConfig,
   RateLimiter,
-  HttpMethod 
-} from '../types';
+  HttpMethod,
+} from "../types";
 
 export class HttpClient {
   private client: AxiosInstance;
@@ -25,20 +28,26 @@ export class HttpClient {
   constructor(config: SdkConfig) {
     this.config = config;
     this.authManager = new AuthManager(config);
-    
+
     // 初始化日志器
     const loggerConfig = config.loggerConfig || {};
-    const logLevel = loggerConfig.level ? LogLevel[loggerConfig.level] : (config.debug ? LogLevel.DEBUG : LogLevel.INFO);
-    
-    this.logger = createModuleLogger('HttpClient', {
+    const logLevel = loggerConfig.level
+      ? LogLevel[loggerConfig.level]
+      : config.debug
+        ? LogLevel.DEBUG
+        : LogLevel.INFO;
+
+    this.logger = createModuleLogger("HttpClient", {
       level: logLevel,
       enableConsole: loggerConfig.enableConsole !== false,
       enableRemote: loggerConfig.enableRemote || false,
-      ...(loggerConfig.remoteEndpoint && { remoteEndpoint: loggerConfig.remoteEndpoint }),
+      ...(loggerConfig.remoteEndpoint && {
+        remoteEndpoint: loggerConfig.remoteEndpoint,
+      }),
       colors: loggerConfig.colors !== false,
       maxEntries: loggerConfig.maxEntries || 1000,
     });
-    
+
     // 初始化限流器
     if (config.rateLimitConfig) {
       this.rateLimiter = new TokenBucketRateLimiter({
@@ -52,12 +61,12 @@ export class HttpClient {
 
     // 初始化axios实例
     this.client = axios.create({
-      baseURL: config.baseURL || 'https://open-api.123pan.com',
+      baseURL: config.baseURL || "https://open-api.123pan.com",
       timeout: config.timeout || 30000,
       headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': '123pan-api-sdk/1.0.0',
-        'platform': 'open_platform', // 添加平台字段
+        "Content-Type": "application/json",
+        "User-Agent": "123pan-api-sdk/1.0.0",
+        platform: "open_platform", // 添加平台字段
       },
     });
 
@@ -76,13 +85,13 @@ export class HttpClient {
           const accessToken = await this.authManager.getAccessToken();
           config.headers = config.headers || {};
           config.headers.Authorization = `Bearer ${accessToken}`;
-          this.logger.debug('Access token added to request');
+          this.logger.debug("Access token added to request");
         } catch (error) {
-          this.logger.error('Failed to get access token', error as Error);
+          this.logger.error("Failed to get access token", error as Error);
           throw error;
         }
 
-        this.logger.debug('Sending HTTP request', {
+        this.logger.debug("Sending HTTP request", {
           method: config.method?.toUpperCase(),
           url: config.url,
           headers: config.headers,
@@ -92,15 +101,15 @@ export class HttpClient {
         return config;
       },
       (error) => {
-        this.logger.error('HTTP request failed', error);
+        this.logger.error("HTTP request failed", error);
         return Promise.reject(error);
-      }
+      },
     );
 
     // 响应拦截器
     this.client.interceptors.response.use(
       (response: AxiosResponse<ApiResponse>) => {
-        this.logger.debug('HTTP response received', {
+        this.logger.debug("HTTP response received", {
           status: response.status,
           statusText: response.statusText,
           data: response.data,
@@ -119,7 +128,7 @@ export class HttpClient {
         return response;
       },
       async (error) => {
-        this.logger.error('HTTP response error', error, {
+        this.logger.error("HTTP response error", error, {
           status: error.response?.status,
           statusText: error.response?.statusText,
           data: error.response?.data,
@@ -127,7 +136,7 @@ export class HttpClient {
 
         // 处理401未授权错误，尝试刷新token
         if (error.response?.status === 401) {
-          this.logger.warn('Received 401 error, attempting token refresh');
+          this.logger.warn("Received 401 error, attempting token refresh");
           try {
             await this.authManager.forceRefreshToken();
             // 重试原请求
@@ -136,23 +145,28 @@ export class HttpClient {
               originalRequest._retry = true;
               const accessToken = await this.authManager.getAccessToken();
               originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-              this.logger.info('Retrying request with refreshed token');
+              this.logger.info("Retrying request with refreshed token");
               return this.client.request(originalRequest);
             }
           } catch (refreshError) {
             // token刷新失败，清除认证信息
-            this.logger.error('Token refresh failed, clearing authentication', refreshError as Error);
-            this.authManager.clearToken();
+            this.logger.error(
+              "Token refresh failed, clearing authentication",
+              refreshError as Error,
+            );
+            await this.authManager.clearToken();
             throw refreshError;
           }
         }
 
         // 处理限流错误
         if (error.response?.status === 429) {
-          const retryAfter = error.response.headers['retry-after'];
+          const retryAfter = error.response.headers["retry-after"];
           if (retryAfter) {
             const waitTime = parseInt(retryAfter) * 1000;
-            this.logger.warn(`Rate limited, waiting ${waitTime}ms before retry`);
+            this.logger.warn(
+              `Rate limited, waiting ${waitTime}ms before retry`,
+            );
             await this.sleep(waitTime);
             return this.client.request(error.config);
           }
@@ -169,7 +183,7 @@ export class HttpClient {
         }
 
         throw error;
-      }
+      },
     );
   }
 
@@ -177,7 +191,7 @@ export class HttpClient {
     method: HttpMethod,
     url: string,
     data?: any,
-    config?: RequestConfig
+    config?: RequestConfig,
   ): Promise<ApiResponse<T>> {
     const requestConfig: AxiosRequestConfig = {
       method,
@@ -185,7 +199,7 @@ export class HttpClient {
       ...config,
     };
 
-    if (method === 'GET') {
+    if (method === "GET") {
       requestConfig.params = data;
     } else {
       requestConfig.data = data;
@@ -198,40 +212,40 @@ export class HttpClient {
   async get<T = any>(
     url: string,
     params?: any,
-    config?: RequestConfig
+    config?: RequestConfig,
   ): Promise<ApiResponse<T>> {
-    return this.request<T>('GET', url, params, config);
+    return this.request<T>("GET", url, params, config);
   }
 
   async post<T = any>(
     url: string,
     data?: any,
-    config?: RequestConfig
+    config?: RequestConfig,
   ): Promise<ApiResponse<T>> {
-    return this.request<T>('POST', url, data, config);
+    return this.request<T>("POST", url, data, config);
   }
 
   async put<T = any>(
     url: string,
     data?: any,
-    config?: RequestConfig
+    config?: RequestConfig,
   ): Promise<ApiResponse<T>> {
-    return this.request<T>('PUT', url, data, config);
+    return this.request<T>("PUT", url, data, config);
   }
 
   async delete<T = any>(
     url: string,
-    config?: RequestConfig
+    config?: RequestConfig,
   ): Promise<ApiResponse<T>> {
-    return this.request<T>('DELETE', url, undefined, config);
+    return this.request<T>("DELETE", url, undefined, config);
   }
 
   async patch<T = any>(
     url: string,
     data?: any,
-    config?: RequestConfig
+    config?: RequestConfig,
   ): Promise<ApiResponse<T>> {
-    return this.request<T>('PATCH', url, data, config);
+    return this.request<T>("PATCH", url, data, config);
   }
 
   /**
@@ -253,7 +267,7 @@ export class HttpClient {
    */
   updateConfig(newConfig: Partial<SdkConfig>): void {
     this.config = { ...this.config, ...newConfig };
-    
+
     if (newConfig.baseURL) {
       this.client.defaults.baseURL = newConfig.baseURL;
     }
@@ -276,8 +290,7 @@ export class HttpClient {
     return this.logger;
   }
 
-
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
