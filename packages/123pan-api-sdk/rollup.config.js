@@ -45,7 +45,7 @@ const bundleConfigs = [
   {
     input: 'packages/sdk/src/index.ts',
     output: {
-      file: 'dist/bundle.js',
+      file: 'dist/bundle.cjs',
       format: 'cjs',
       sourcemap: true,
       exports: 'named',
@@ -87,7 +87,7 @@ const moduleConfigs = modules.flatMap(module => [
   {
     input: module.input,
     output: {
-      file: `dist/modules/${module.name}.js`,
+      file: `dist/modules/${module.name}.cjs`,
       format: 'cjs',
       sourcemap: true,
       exports: 'named',
@@ -114,7 +114,7 @@ const mainConfigs = [
   {
     input: 'packages/sdk/src/index.ts',
     output: {
-      file: 'dist/index.js',
+      file: 'dist/index.cjs',
       format: 'cjs',
       sourcemap: true,
       exports: 'named',

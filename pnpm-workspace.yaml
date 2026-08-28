@@ -1,3 +1,6 @@
+packages:
+  - 'packages/*'
+  - 'packages/123pan-api-sdk/packages/*'
 shamefullyHoist: true
 allowBuilds:
   electron: true

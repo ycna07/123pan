@@ -4,7 +4,7 @@
   "description": "123Pan 普通用户 API Node.js SDK - 提供完整的 TypeScript 类型支持",
   "private": false,
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -13,64 +13,51 @@
   "exports": {
     ".": {
       "import": "./dist/index.esm.js",
-      "require": "./dist/index.js",
+      "require": "./dist/index.cjs",
       "types": "./dist/index.d.ts"
     },
     "./bundle": {
       "import": "./dist/bundle.esm.js",
-      "require": "./dist/bundle.js",
+      "require": "./dist/bundle.cjs",
       "browser": "./dist/bundle.umd.js",
       "types": "./dist/bundle.d.ts"
     },
     "./core": {
       "import": "./dist/modules/core.esm.js",
-      "require": "./dist/modules/core.js",
+      "require": "./dist/modules/core.cjs",
       "types": "./dist/modules/core.d.ts"
     },
     "./file": {
       "import": "./dist/modules/file.esm.js",
-      "require": "./dist/modules/file.js",
+      "require": "./dist/modules/file.cjs",
       "types": "./dist/modules/file.d.ts"
     },
     "./offline": {
       "import": "./dist/modules/offline.esm.js",
-      "require": "./dist/modules/offline.js",
+      "require": "./dist/modules/offline.cjs",
       "types": "./dist/modules/offline.d.ts"
     },
     "./user": {
       "import": "./dist/modules/user.esm.js",
-      "require": "./dist/modules/user.js",
+      "require": "./dist/modules/user.cjs",
       "types": "./dist/modules/user.d.ts"
     },
     "./direct-link": {
       "import": "./dist/modules/direct-link.esm.js",
-      "require": "./dist/modules/direct-link.js",
+      "require": "./dist/modules/direct-link.cjs",
       "types": "./dist/modules/direct-link.d.ts"
     },
     "./image": {
       "import": "./dist/modules/image.esm.js",
-      "require": "./dist/modules/image.js",
+      "require": "./dist/modules/image.cjs",
       "types": "./dist/modules/image.d.ts"
     },
     "./video": {
       "import": "./dist/modules/video.esm.js",
-      "require": "./dist/modules/video.js",
+      "require": "./dist/modules/video.cjs",
       "types": "./dist/modules/video.d.ts"
     }
   },
-  "workspaces": [
-    "packages/core",
-    "packages/file",
-    "packages/share",
-    "packages/offline",
-    "packages/user",
-    "packages/direct-link",
-    "packages/image",
-    "packages/video",
-    "packages/sdk",
-    "packages/demo",
-    "packages/examples"
-  ],
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
@@ -123,6 +110,13 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
+    "@123pan/core": "workspace:*",
+    "@123pan/direct-link": "workspace:*",
+    "@123pan/file": "workspace:*",
+    "@123pan/image": "workspace:*",
+    "@123pan/offline": "workspace:*",
+    "@123pan/user": "workspace:*",
+    "@123pan/video": "workspace:*",
     "axios": "^1.6.2"
   },
   "engines": {
