@@ -18,7 +18,10 @@ import * as os from "os";
 export class AuthManager {
   private clientID: string;
   private clientSecret: string;
+  private passport: string;
+  private password: string;
   private baseURL: string;
+  private loginBaseURL: string;
   private timeout: number;
   private tokenInfo: TokenInfo | null = null;
   private httpClient: AxiosInstance;
@@ -34,9 +37,12 @@ export class AuthManager {
 
   constructor(config: SdkConfig) {
     this.config = config;
-    this.clientID = config.clientID;
-    this.clientSecret = config.clientSecret;
-    this.baseURL = config.baseURL || "https://open-api.123pan.com";
+    this.passport = config.passport || "";
+    this.password = config.password || "";
+    this.clientID = config.clientID || "";
+    this.clientSecret = config.clientSecret || "";
+    this.baseURL = config.baseURL || "https://www.123pan.com/b";
+    this.loginBaseURL = config.loginBaseURL || "https://login.123pan.com/api";
     this.timeout = config.timeout || 30000;
 
     // 初始化日志器（移到前面，因为后续可能需要使用）
@@ -84,7 +90,8 @@ export class AuthManager {
       headers: {
         "User-Agent": "123pan-api-sdk",
         "Content-Type": "application/json",
-        platform: "open_platform", // 添加平台字段
+        platform: "web",
+        "app-version": "3",
       },
     });
 
@@ -100,8 +107,15 @@ export class AuthManager {
       this.setDebugToken(config.debugToken);
       this.logger.info("Using debug token instead of API authentication");
     } else if (!this.tokenInfo || !this.isTokenValid()) {
-      /** 只有当缓存token无效或不存在时，才刷新token */
-      this.forceRefreshToken();
+      if (config.token) {
+        this.setDirectToken(config.token);
+      } else if (this.canUseNormalAuth()) {
+        /** 账号密码模式：首次请求前按需登录，不阻塞构造函数 */
+        this.forceRefreshToken();
+      } else if (this.canUseOpenAuth() && this.baseURL.includes("open-api.123pan.com")) {
+        /** 兼容模式：显式使用 Open API baseURL 时保留旧凭证登录 */
+        this.forceRefreshToken();
+      }
     } else {
       this.logger.info("Using cached access token");
     }
@@ -185,75 +199,69 @@ export class AuthManager {
    */
   private async refreshToken(): Promise<TokenInfo> {
     try {
-      this.logger.debug("Requesting new access token from API");
-      const response = await this.httpClient.post<AccessTokenResponse>(
-        "/api/v1/access_token",
-        {
-          clientID: this.clientID,
-          clientSecret: this.clientSecret,
-        },
-      );
+      let token = "";
+      let responseStatus = 0;
+      let responseBody: unknown;
+      if (this.canUseNormalAuth()) {
+        this.logger.debug("Signing in with passport");
+        const response = await axios.post<AccessTokenResponse>(
+          `${this.loginBaseURL}/user/sign_in`,
+          {
+            passport: this.passport,
+            password: this.password,
+            remember: true,
+          },
+          {
+            timeout: this.timeout,
+            headers: {
+              "Content-Type": "application/json",
+              "User-Agent": "123pan-api-sdk",
+              platform: "web",
+              "app-version": "3",
+            },
+          },
+        );
+        responseStatus = response.status;
+        responseBody = response.data;
+        if (isSuccessCode(response.data.code)) {
+          token = response.data.data?.token || response.data.data?.accessToken || "";
+        }
+      } else if (this.canUseOpenAuth()) {
+        this.logger.debug("Requesting Open API access token");
+        const response = await this.httpClient.post<AccessTokenResponse>(
+          "/api/v1/access_token",
+          {
+            clientID: this.clientID,
+            clientSecret: this.clientSecret,
+          },
+        );
+        responseStatus = response.status;
+        responseBody = response.data;
+        if (isSuccessCode(response.data.code)) {
+          token = response.data.data?.accessToken || "";
+        }
+      } else {
+        throw new Error(
+          "认证配置无效：请提供 token、passport + password，或显式使用 Open API 的 clientID + clientSecret",
+        );
+      }
 
       this.logger.debug("Token API response received", {
-        status: response.status,
-        data: response.data,
+        status: responseStatus,
+        data: responseBody,
       });
 
-      // 检查API响应格式
-      if (!response.data) {
-        throw new Error("Invalid API response: missing data field");
+      if (!token) {
+        throw new Error("登录失败：响应中没有有效 token");
       }
 
-      let tokenData;
-      const responseData = response.data;
-
-      // 只支持包装格式：{code, message, data, x-traceID}
-      if (typeof responseData.code === "undefined") {
-        throw new Error(
-          "Invalid token response: missing code field (expected wrapped format)",
-        );
-      }
-
-      this.logger.debug("Processing wrapped API response format");
-
-      if (responseData.code !== 0) {
-        const errorMessage = responseData.message || "Unknown API error";
-        const traceId = responseData["x-traceID"] || "unknown";
-
-        this.logger.error("Token API returned error", new Error(errorMessage), {
-          code: responseData.code,
-          message: errorMessage,
-          traceId: traceId,
-          data: responseData.data,
-        });
-
-        throw new Error(
-          `Token API error (code: ${responseData.code}): ${errorMessage} [TraceID: ${traceId}]`,
-        );
-      }
-
-      // 验证成功响应的数据结构
-      if (!responseData.data || !responseData.data.accessToken) {
-        throw new Error(
-          "Invalid token response: missing accessToken in data field",
-        );
-      }
-
-      tokenData = responseData.data;
-
-      // 使用驼峰格式字段名
-      const { accessToken, expiresIn, tokenType } = tokenData;
-
-      // 验证expiresIn是否为有效数字
-      const expiresInMs =
-        typeof expiresIn === "number" && expiresIn > 0
-          ? expiresIn * 1000
-          : 3600 * 1000; // 默认1小时
+      const expiresAt = parseJwtExpiration(token);
+      const expiresInMs = Math.max(expiresAt - Date.now(), 60_000);
 
       this.tokenInfo = {
-        accessToken: accessToken,
-        expiresAt: Date.now() + expiresInMs - 60000, // 提前1分钟过期
-        tokenType: tokenType,
+        accessToken: token,
+        expiresAt,
+        tokenType: "Bearer",
       };
 
       // 更新最后刷新时间
@@ -267,10 +275,9 @@ export class AuthManager {
       this.saveTokenToCache();
 
       this.logger.debug("Access token received and stored", {
-        tokenType: tokenType,
-        expiresIn: expiresIn,
-        expiresInSeconds: expiresInMs / 1000,
+        tokenType: "Bearer",
         expiresAt: new Date(this.tokenInfo.expiresAt).toISOString(),
+        expiresInSeconds: expiresInMs / 1000,
       });
 
       return this.tokenInfo;
@@ -417,11 +424,25 @@ export class AuthManager {
     return this.minRefreshInterval;
   }
 
+  private canUseNormalAuth(): boolean {
+    return !!(this.passport && this.password);
+  }
+
+  private canUseOpenAuth(): boolean {
+    return !!(this.clientID && this.clientSecret);
+  }
+
   /**
    * 检查认证配置是否有效
    */
   isConfigValid(): boolean {
-    return !!(this.clientID && this.clientSecret);
+    return !!(
+      this.config.token ||
+      (this.passport && this.password) ||
+      (this.clientID &&
+        this.clientSecret &&
+        this.baseURL.includes("open-api.123pan.com"))
+    );
   }
 
   /**
@@ -513,6 +534,22 @@ export class AuthManager {
     return !!(this.config.debug && this.config.debugToken && this.tokenInfo);
   }
 
+  private setDirectToken(token: string): void {
+    const parsedToken = token.replace(/^Bearer\s+/i, "");
+    const expiresAt = parseJwtExpiration(parsedToken);
+
+    this.tokenInfo = {
+      accessToken: parsedToken,
+      expiresAt,
+      tokenType: "Bearer",
+    };
+
+    this.logger.info("Using direct token", {
+      expiresAt: new Date(expiresAt).toISOString(),
+      tokenLength: parsedToken.length,
+    });
+  }
+
   /**
    * 从缓存文件加载token
    */
@@ -585,4 +622,24 @@ export class AuthManager {
       this.logger.warn("Failed to delete cache file", error as Error);
     }
   }
+}
+
+function isSuccessCode(code: number): boolean {
+  return code === 0 || code === 200;
+}
+
+function parseJwtExpiration(token: string): number {
+  try {
+    const payload = JSON.parse(
+      Buffer.from(token.split(".")[1] || "", "base64url").toString("utf-8"),
+    ) as { exp?: number };
+
+    if (typeof payload.exp === "number" && payload.exp > 0) {
+      return payload.exp * 1000;
+    }
+  } catch {
+    // Some gateway tokens are not JWTs; fall back to a conservative lifetime.
+  }
+
+  return Date.now() + 30 * 24 * 60 * 60 * 1000;
 }

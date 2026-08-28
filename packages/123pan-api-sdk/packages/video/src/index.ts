@@ -74,6 +74,9 @@ export interface DownloadAllTranscodeFilesResponse {
   downloadUrl: string;
 }
 
+/**
+ * @deprecated 视频转码能力属于 Open API；普通用户 API 没有对应接口。
+ */
 export class VideoModule {
   public readonly upload: UploadModule;
   public readonly info: InfoModule;

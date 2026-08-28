@@ -31,9 +31,10 @@ export class SpaceModule {
       throw new Error('fileID 必须是有效的正整数');
     }
 
-    return this.httpClient.post<EnableDirectLinkResponse>('/api/v1/direct-link/enable', {
+    const result = await this.httpClient.post<any>('/api/cdn-link/enable', {
       fileID,
     });
+    return { ...result, data: mapFilename(result.data) };
   }
 
   /**
@@ -51,9 +52,10 @@ export class SpaceModule {
       throw new Error('fileID 必须是有效的正整数');
     }
 
-    return this.httpClient.post<DisableDirectLinkResponse>('/api/v1/direct-link/disable', {
+    const result = await this.httpClient.post<any>('/api/cdn-link/disable', {
       fileID,
     });
+    return { ...result, data: mapFilename(result.data) };
   }
 
   /**
@@ -71,9 +73,14 @@ export class SpaceModule {
       throw new Error('fileID 必须是有效的正整数');
     }
 
-    return this.httpClient.get<GetDirectLinkUrlResponse>('/api/v1/direct-link/url', {
+    const result = await this.httpClient.get<any>('/api/cdn-link/url', {
       fileID,
     });
+    const url = result.data?.url || result.data?.URL || result.data;
+    if (typeof url !== 'string' || !url) {
+      throw new Error('直链响应中没有有效 URL');
+    }
+    return { ...result, data: { url } };
   }
 
   /**
@@ -82,7 +89,13 @@ export class SpaceModule {
    * @returns 刷新结果
    */
   async refreshCache(): Promise<ApiResponse<{}>> {
-    return this.httpClient.post<{}>('/api/v1/direct-link/cache/refresh', {});
+    return this.httpClient.post<{}>('/api/restful/goapi/v1/cdnLink/cache/refresh', {});
   }
 }
 
+function mapFilename(data: any): EnableDirectLinkResponse {
+  if (typeof data === 'string') {
+    return { filename: data };
+  }
+  return { filename: data?.filename || data?.FileName || '' };
+}

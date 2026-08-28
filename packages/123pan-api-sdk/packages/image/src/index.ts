@@ -20,6 +20,9 @@ export interface ImageUploadResponse {
   height?: number;
 }
 
+/**
+ * @deprecated 图床能力属于 Open API；普通用户 API 没有对应接口。
+ */
 export class ImageModule {
   public readonly upload: UploadModule;
   public readonly copy: CopyModule;

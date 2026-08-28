@@ -1,7 +1,7 @@
 {
   "name": "@sharef/123pan-sdk",
   "version": "1.0.4",
-  "description": "123Pan 开放平台 Node.js SDK - 提供完整的 TypeScript 类型支持，支持云盘、图床、视频转码等功能",
+  "description": "123Pan 普通用户 API Node.js SDK - 提供完整的 TypeScript 类型支持",
   "private": false,
   "type": "module",
   "main": "dist/index.js",

@@ -1,6 +1,6 @@
 # 123Pan API SDK
 
-> 123Pan 开放平台的 Node.js SDK，提供完整的 TypeScript 类型支持
+> 123Pan 普通用户 API 的 Node.js SDK，提供完整的 TypeScript 类型支持
 
 [![npm version](https://img.shields.io/npm/v/@sharef/123pan-sdk.svg)](https://www.npmjs.com/package/@sharef/123pan-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -9,14 +9,11 @@
 ## 📚 文档
 
 - **完整文档**: [https://blog.sharef.top/123pan-api-sdk/](https://blog.sharef.top/123pan-api-sdk/)
-- **官方 API 文档**: [123Pan 开放平台文档](https://123yunpan.yuque.com/org-wiki-123yunpan-muaork/cr6ced)
-- **开放平台**: [123Pan 开放平台](https://www.123pan.com/open)
-
-> 本 SDK 基于 [123Pan 官方 API 文档](https://123yunpan.yuque.com/org-wiki-123yunpan-muaork/cr6ced) 开发，提供完整的 TypeScript 封装和类型支持。
+- **API 基础地址**: `https://www.123pan.com/b`
 
 ## ✨ 特性
 
-- 🚀 **完整的 API 覆盖** - 支持云盘、图床、视频转码、离线下载等功能
+- 🚀 **核心 API 覆盖** - 支持云盘文件、分享、上传和离线下载
 - 📦 **模块化设计** - 支持全量引入和按需引入，可减少 60-80% 打包体积
 - 🔒 **类型安全** - 完整的 TypeScript 类型定义
 - ⚡ **自动认证** - 自动管理 token 刷新和重试
@@ -44,8 +41,11 @@ import Pan123SDK from '@sharef/123pan-sdk';
 
 // 初始化 SDK
 const sdk = new Pan123SDK({
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
+  // 二选一：直接使用网页端 JWT token
+  token: 'your-web-token',
+  // 或使用账号密码自动登录
+  // passport: 'your-account',
+  // password: 'your-password',
 });
 
 // 获取用户信息
@@ -54,21 +54,21 @@ console.log('用户名:', userInfo.data.nickname);
 
 // 上传文件到云盘
 const result = await sdk.file.upload.uploadFile({
-  filePath: './document.pdf',
-  fileName: 'document.pdf',
-  parentId: 0,
+  filename: 'document.pdf',
+  file: Buffer.from('file-content'),
+  parentFileID: 0,
   onProgress: (progress) => {
-    console.log(`上传进度: ${progress}%`);
+    console.log(`上传进度: ${progress.percent}%`);
   }
 });
 
 // 创建分享
-const share = await sdk.file.share.createShare({
+await sdk.file.share.createShare({
   shareName: '我的文档',
   shareExpire: 7,
   fileIDList: [result.data.fileId],
 });
-console.log('分享链接:', share.data.shareUrl);
+console.log('分享码:', share.data.shareKey);
 ```
 
 ## 主要功能
@@ -117,50 +117,13 @@ await sdk.file.share.createContentPaymentShare({
 ### 🖼️ 图床功能
 
 ```typescript
-// 图片上传
-await sdk.image.upload.uploadFile({
-  filePath: './photo.jpg',
-  fileName: 'photo.jpg',
-  parentId: 0,
-});
-
-// 获取图片列表
-await sdk.image.info.getImageList({ 
-  parentFileId: 0,
-  limit: 100 
-});
-
-// 获取图片链接
-await sdk.image.view.getImageUrl({
-  fileId: 123,
-  width: 800,
-  height: 600,
-});
+// 图床能力属于 Open API。SDK 保留模块和类型，但在普通用户 API 模式下没有对应端点。
 ```
 
 ### 🎬 视频转码
 
 ```typescript
-// 从云盘上传到转码空间
-await sdk.video.upload.fromCloudDisk({
-  fileIds: [123456],
-});
-
-// 获取可转码分辨率
-const resInfo = await sdk.video.info.getVideoResolutionsWithPolling({
-  fileId: 123456,
-});
-
-// 启动转码任务
-await sdk.video.transcodeVideo({
-  fileId: 123456,
-  codecName: 'H.264',
-  videoTime: 120,
-  resolutions: ['2160P', '1080P', '720P'],
-});
-
-// 查询转码结果
-await sdk.video.info.getTranscodeList({ fileId: 123456 });
+// 视频转码能力属于 Open API。SDK 保留模块和类型，但在普通用户 API 模式下没有对应端点。
 ```
 
 ### 📥 离线下载
@@ -195,8 +158,7 @@ import { FileModule } from '@sharef/123pan-sdk/file';
 import { ImageModule } from '@sharef/123pan-sdk/image';
 
 const httpClient = new HttpClient({
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
+  token: 'your-web-token',
 });
 
 const file = new FileModule(httpClient);
@@ -209,16 +171,21 @@ const image = new ImageModule(httpClient);
 
 ```typescript
 const sdk = new Pan123SDK({
-  // 必需参数
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
-  
+  // 认证二选一：网页端 JWT token，或 passport + password
+  token: 'your-web-token',
+  // passport: 'your-account',
+  // password: 'your-password',
+
   // 可选参数
-  baseURL: 'https://open-api.123pan.com',  // API 基础 URL
+  baseURL: 'https://www.123pan.com/b',     // API 基础 URL
+  loginBaseURL: 'https://login.123pan.com/api', // 登录 API 基础 URL
+  loginuuid: 'stable-or-random-uuid',      // 可选请求标识
   debug: false,                             // 调试模式
   debugToken: 'your-jwt-token',             // 调试令牌
 });
 ```
+
+如果显式设置 `baseURL` 为 `https://open-api.123pan.com` 并提供 `clientID` / `clientSecret`，SDK 仍保留旧的 Open API 登录兼容路径；默认业务端点已切换为普通用户 API。
 
 ## 错误处理
 

@@ -12,6 +12,9 @@ import type {
   GetTrafficLogsResponse,
 } from './types';
 
+/**
+ * @deprecated 直链日志是 Open API 能力；普通用户 API 没有对应接口。
+ */
 export class LoggerModule {
   constructor(private httpClient: HttpClient) {}
 
@@ -133,4 +136,3 @@ export class LoggerModule {
     return new Date(year, month, day, hour);
   }
 }
-

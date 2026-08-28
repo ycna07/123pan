@@ -61,12 +61,17 @@ export class HttpClient {
 
     // 初始化axios实例
     this.client = axios.create({
-      baseURL: config.baseURL || "https://open-api.123pan.com",
+      baseURL: config.baseURL || "https://www.123pan.com/b",
       timeout: config.timeout || 30000,
       headers: {
+        Accept: "*/*",
+        "Accept-Language": "zh-CN,zh;q=0.9",
         "Content-Type": "application/json",
-        "User-Agent": "123pan-api-sdk/1.0.0",
-        platform: "open_platform", // 添加平台字段
+        "app-version": "3",
+        loginuuid: config.loginuuid || createLoginUUID(),
+        "User-Agent":
+          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        platform: "web", // 添加平台字段
       },
     });
 
@@ -79,6 +84,8 @@ export class HttpClient {
       async (config) => {
         // 应用限流
         await this.rateLimiter.checkLimit();
+
+        config.url = appendCacheBust(config.url);
 
         // 添加认证头
         try {
@@ -116,6 +123,10 @@ export class HttpClient {
         });
 
         // 检查业务状态码
+        if (response.data.code === 200) {
+          response.data.code = 0;
+        }
+
         if (response.data.code !== 0) {
           const error: ApiError = {
             code: response.data.code,
@@ -293,4 +304,31 @@ export class HttpClient {
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
+}
+
+function createLoginUUID(): string {
+  const bytes = new Uint8Array(16);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = Math.floor(Math.random() * 256);
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex
+    .slice(6, 8)
+    .join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
+}
+
+function appendCacheBust(url: string | undefined): string {
+  if (!url || /^https?:\/\//i.test(url)) {
+    return url || "";
+  }
+
+  const timestamp = Date.now();
+  const value = `${timestamp}-${Math.floor(Math.random() * 1_000_000)}-${Math.floor(
+    Math.random() * 1_000_000_000,
+  )}`;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}${timestamp}=${value}`;
 }

@@ -6,8 +6,8 @@
  * import Pan123SDK from '123pan-api-sdk';
  * 
  * const sdk = new Pan123SDK({
- *   clientID: 'your-client-id',
- *   clientSecret: 'your-client-secret',
+ *   passport: 'your-account',
+ *   password: 'your-password',
  * });
  * 
  * // 获取文件列表
@@ -42,13 +42,7 @@ export class Pan123SDK {
   public readonly saaa:any;
 
   constructor(config: SdkConfig) {
-
-    // 验证必需的配置
-    if (!config.clientID || !config.clientSecret) {
-      throw new Error('clientID and clientSecret are required');
-    }
-
-    // 初始化HTTP客户端
+    // 认证配置由 AuthManager 校验：token、passport+password，或显式 Open API 兼容模式。
     this.httpClient = new HttpClient(config);
 
     // 初始化各功能模块

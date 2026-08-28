@@ -12,6 +12,9 @@ import type {
   GetIpBlacklistResponse,
 } from './types';
 
+/**
+ * @deprecated IP 黑名单是 Open API 能力；普通用户 API 没有对应接口。
+ */
 export class IpModule {
   constructor(private httpClient: HttpClient) {}
 
@@ -79,4 +82,3 @@ export class IpModule {
     return this.httpClient.get<GetIpBlacklistResponse>('/api/v1/developer/config/forbide-ip/list');
   }
 }
-

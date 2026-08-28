@@ -27,51 +27,34 @@ export class ShareModule {
    * @returns 分享信息（包含分享ID和分享码）
    */
   async createShare(params: CreateShareParams): Promise<ApiResponse<CreateShareResponse>> {
-    // 处理 fileIDList：如果是数组，转换为逗号分割的字符串
-    let fileIDListStr: string;
-    if (Array.isArray(params.fileIDList)) {
-      // 验证数量限制（最多100个）
-      if (params.fileIDList.length > 100) {
-        throw new Error('文件ID列表最多支持100个文件');
-      }
-      // 转换为字符串数组，然后拼接
-      fileIDListStr = params.fileIDList.map((id) => String(id)).join(',');
-    } else {
-      fileIDListStr = params.fileIDList;
-      // 验证字符串格式的文件ID列表数量
-      const fileIDs = fileIDListStr.split(',').filter((id) => id.trim() !== '');
-      if (fileIDs.length > 100) {
-        throw new Error('文件ID列表最多支持100个文件');
-      }
-    }
-
-    // 验证 shareExpire 是否为有效值
+    const fileIDListStr = normalizeFileIDs(params.fileIDList);
     if (![0, 1, 7, 30].includes(params.shareExpire)) {
       throw new Error('shareExpire 必须是 0、1、7 或 30 之一');
     }
 
-    // 构建请求体
-    const requestBody: any = {
+    const result = await this.httpClient.post<any>('/api/share/create', {
+      fileIdList: fileIDListStr,
+      displayStatus: 2,
+      driveId: 0,
+      event: 'shareCreate',
+      expiration: toExpiration(params.shareExpire),
+      fillPwdSwitch: 1,
+      isPayShare: false,
+      isReward: 0,
+      payAmount: 0,
+      renameVisible: false,
+      resourceDesc: '',
       shareName: params.shareName,
-      shareExpire: params.shareExpire,
-      fileIDList: fileIDListStr,
+      sharePwd: params.sharePwd || '',
+      trafficLimit: params.trafficLimit || 0,
+      trafficLimitSwitch: params.trafficLimitSwitch || 1,
+      trafficSwitch: params.trafficSwitch || 1,
+    });
+
+    return {
+      ...result,
+      data: mapShareData(result.data),
     };
-
-    // 添加可选参数
-    if (params.sharePwd !== undefined) {
-      requestBody.sharePwd = params.sharePwd;
-    }
-    if (params.trafficSwitch !== undefined) {
-      requestBody.trafficSwitch = params.trafficSwitch;
-    }
-    if (params.trafficLimitSwitch !== undefined) {
-      requestBody.trafficLimitSwitch = params.trafficLimitSwitch;
-    }
-    if (params.trafficLimit !== undefined) {
-      requestBody.trafficLimit = params.trafficLimit;
-    }
-
-    return this.httpClient.post<CreateShareResponse>('/api/v1/share/create', requestBody);
   }
 
   /**
@@ -94,56 +77,63 @@ export class ShareModule {
     }
 
     // 处理 fileIDList：如果是数组，转换为逗号分割的字符串
-    let fileIDListStr: string;
-    if (Array.isArray(params.fileIDList)) {
-      // 验证数量限制（最多100个）
-      if (params.fileIDList.length > 100) {
-        throw new Error('文件ID列表最多支持100个文件');
-      }
-      // 转换为字符串数组，然后拼接
-      fileIDListStr = params.fileIDList.map((id) => String(id)).join(',');
-    } else {
-      fileIDListStr = params.fileIDList;
-      // 验证字符串格式的文件ID列表数量
-      const fileIDs = fileIDListStr.split(',').filter((id) => id.trim() !== '');
-      if (fileIDs.length > 100) {
-        throw new Error('文件ID列表最多支持100个文件');
-      }
-    }
+    const fileIDListStr = normalizeFileIDs(params.fileIDList);
 
     // 验证 payAmount（1-1000元）
     if (!Number.isInteger(params.payAmount) || params.payAmount < 1 || params.payAmount > 1000) {
       throw new Error('付费金额必须是1-1000之间的整数');
     }
 
-    // 构建请求体
-    const requestBody: any = {
+    const result = await this.httpClient.post<any>('/api/share/create', {
+      fileIdList: fileIDListStr,
+      displayStatus: 2,
+      driveId: 0,
+      event: 'shareCreate',
+      expiration: toExpiration(0),
+      fillPwdSwitch: 1,
+      isPayShare: true,
+      isReward: params.isReward || 0,
+      payAmount: params.payAmount * 100,
+      renameVisible: false,
+      resourceDesc: params.resourceDesc || '',
       shareName: params.shareName,
-      fileIDList: fileIDListStr,
-      payAmount: params.payAmount,
+      sharePwd: '',
+      trafficLimit: params.trafficLimit || 0,
+      trafficLimitSwitch: params.trafficLimitSwitch || 1,
+      trafficSwitch: params.trafficSwitch || 1,
+    });
+
+    return {
+      ...result,
+      data: mapShareData(result.data),
     };
-
-    // 添加可选参数
-    if (params.isReward !== undefined) {
-      requestBody.isReward = params.isReward;
-    }
-    if (params.resourceDesc !== undefined) {
-      requestBody.resourceDesc = params.resourceDesc;
-    }
-    if (params.trafficSwitch !== undefined) {
-      requestBody.trafficSwitch = params.trafficSwitch;
-    }
-    if (params.trafficLimitSwitch !== undefined) {
-      requestBody.trafficLimitSwitch = params.trafficLimitSwitch;
-    }
-    if (params.trafficLimit !== undefined) {
-      requestBody.trafficLimit = params.trafficLimit;
-    }
-
-    return this.httpClient.post<CreatePaidShareResponse>('/api/v1/share/content-payment/create', requestBody);
   }
 }
 
 // 导出类型
 export * from './types';
 
+function normalizeFileIDs(value: (number | string)[] | string): string {
+  const ids = Array.isArray(value) ? value : value.split(',').map((id) => id.trim()).filter(Boolean);
+  if (ids.length > 100) {
+    throw new Error('文件ID列表最多支持100个文件');
+  }
+  return ids.join(',');
+}
+
+function toExpiration(days: 0 | 1 | 7 | 30): string {
+  if (days === 0) {
+    return '9999-12-31T23:59:59+08:00';
+  }
+  const time = new Date(Date.now() + days * 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000);
+  return `${time.toISOString().slice(0, 19)}+08:00`;
+}
+
+function mapShareData(data: any): CreateShareResponse {
+  const shareID = data?.ShareID ?? data?.shareID ?? data?.shareId ?? data?.ID ?? data?.id ?? 0;
+  const shareKey = data?.ShareKey ?? data?.shareKey ?? data?.key ?? '';
+  return {
+    shareID: Number(shareID),
+    shareKey: String(shareKey),
+  };
+}

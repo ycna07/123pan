@@ -4,9 +4,19 @@
 
 // SDK配置接口
 export interface SdkConfig {
-  clientID: string;
-  clientSecret: string;
+  /** 普通用户 API：直接传入网页端 JWT token */
+  token?: string;
+  /** 普通用户 API：账号（手机号或邮箱），与 password 一起使用 */
+  passport?: string;
+  /** 普通用户 API：账号密码，与 passport 一起使用 */
+  password?: string;
+  /** 兼容 Open API 的应用凭证 */
+  clientID?: string;
+  clientSecret?: string;
   baseURL?: string;
+  loginBaseURL?: string;
+  /** 普通用户 API 请求头，一般保持默认随机值即可 */
+  loginuuid?: string;
   timeout?: number;
   retries?: number;
   debug?: boolean;
@@ -52,6 +62,7 @@ export interface AccessTokenData {
   accessToken: string;
   expiresIn: number;
   tokenType: string;
+  token?: string;
 }
 
 export interface AccessTokenResponse extends ApiResponse<AccessTokenData> {}
@@ -116,10 +127,12 @@ export interface UserInfo {
   spaceUsed: number;
   spacePermanent: number;
   spaceTemp: number;
-  spaceTempExpr: number;
+  /** 临时空间到期时间；普通用户 API 返回字符串 */
+  spaceTempExpr: string;
   vip: boolean;
+  vipLabel?: string;
   directTraffic: number;
-  isHideUID: boolean;
+  isHideUID?: boolean;
   httpsCount: number;
   vipInfo?: any[];
   developerInfo?: any;
@@ -142,7 +155,13 @@ export interface OfflineTask {
   taskId: string;
   taskName: string;
   taskUrl: string;
-  taskStatus: "pending" | "downloading" | "completed" | "failed" | "paused";
+  taskStatus:
+    | "pending"
+    | "downloading"
+    | "completed"
+    | "failed"
+    | "paused"
+    | "retrying";
   progress: number;
   fileSize?: number;
   downloadSpeed?: number;

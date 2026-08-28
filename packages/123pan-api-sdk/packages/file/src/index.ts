@@ -283,9 +283,10 @@ export class FileModule {
     // 转换为数字数组
     const fileIDsNum = fileIDs.map((id) => (typeof id === 'string' ? parseInt(id, 10) : id));
 
-    return this.httpClient.post('/api/v1/file/move', {
-      fileIDs: fileIDsNum,
-      toParentFileID,
+    return this.httpClient.post('/api/file/mod_pid', {
+      fileIdList: fileIDsNum.map((FileId) => ({ FileId })),
+      parentFileId: toParentFileID,
+      event: 'fileMove',
     });
   }
 
@@ -316,21 +317,39 @@ export class FileModule {
 
     // 构建查询参数
     const queryParams: Record<string, any> = {
+      driveId: 0,
+      limit: Math.min(limit, 100),
+      orderBy: 'fileId',
+      orderDirection: 'asc',
+      Page: 1,
       parentFileId,
-      limit: Math.min(limit, 100), // 限制最大100
+      trashed: false,
+      event: 'homeListFile',
+      OnlyLookAbnormalFile: 0,
     };
 
     if (searchData !== undefined) {
-      queryParams.searchData = searchData;
+      queryParams.SearchData = searchData;
     }
     if (searchMode !== undefined) {
       queryParams.searchMode = searchMode;
     }
     if (lastFileId !== undefined) {
-      queryParams.lastFileId = lastFileId;
+      queryParams.Next = lastFileId;
     }
 
-    return this.httpClient.get<GetFileListResponse>('/api/v2/file/list', queryParams);
+    const result = await this.httpClient.get<{
+      Next?: number | string;
+      InfoList?: any[];
+    }>('/api/file/list/new', queryParams);
+
+    return {
+      ...result,
+      data: {
+        lastFileId: toNumber(result.data?.Next, -1),
+        fileList: (result.data?.InfoList || []).map(mapNormalFileItem),
+      },
+    };
   }
 
   /**
@@ -349,17 +368,15 @@ export class FileModule {
     // 转换为数字数组
     const fileIdsNum = fileIds.map((id) => (typeof id === 'string' ? parseInt(id, 10) : id));
 
-    const result = await this.httpClient.post<{
-      list?: FileDetailInfo[];
-    }>('/api/v1/file/infos', {
-      fileIds: fileIdsNum,
+    const result = await this.httpClient.post<{ InfoList?: any[] }>('/api/file/info', {
+      fileIdList: fileIdsNum.map((FileId) => ({ FileId })),
     });
 
     // API返回的是list字段，但我们需要统一为GetFileInfosResponse格式
     return {
       ...result,
       data: {
-        list: result.data?.list || [],
+        list: (result.data?.InfoList || []).map(mapNormalFileDetail),
       },
     };
   }
@@ -374,12 +391,21 @@ export class FileModule {
     // 转换为数字数组
     const fileIDsNum = fileIDs.map((id) => (typeof id === 'string' ? parseInt(id, 10) : id));
 
-    // 根据 permanent 参数选择不同的接口
-    const endpoint = permanent ? '/api/v1/file/delete' : '/api/v1/file/trash';
-
-    return this.httpClient.post(endpoint, {
-      fileIDs: fileIDsNum,
+    await this.httpClient.post('/api/file/trash', {
+      fileTrashInfoList: fileIDsNum.map((FileId) => ({ FileId })),
+      driveId: 0,
+      event: 'intoRecycle',
+      operation: true,
     });
+
+    if (permanent) {
+      await this.httpClient.post('/api/file/delete', {
+        fileIdList: fileIDsNum.map((FileId) => ({ FileId })),
+        event: 'recycleDelete',
+      });
+    }
+
+    return { code: 0, message: 'ok', data: null };
   }
 
   /**
@@ -394,49 +420,124 @@ export class FileModule {
   }): Promise<ApiResponse<GetDownloadInfoResponse>> {
     const fileId = typeof params.fileId === 'string' ? parseInt(params.fileId, 10) : params.fileId;
 
-    return this.httpClient.get('/api/v1/file/download_info', {
-      fileId,
-    });
+    const info = await this.getFileInfos({ fileIds: [fileId] });
+    const file = info.data.list[0];
+
+    if (!file) {
+      throw new Error(`未找到文件：${fileId}`);
+    }
+
+    const result = await this.httpClient.post<any>(
+      '/api/file/download_info',
+      {
+        Etag: file.etag,
+        S3KeyFlag: file.s3KeyFlag,
+        FileName: file.filename,
+        FileID: file.fileId,
+        Size: file.size,
+        Type: 0,
+        driveId: 0,
+      },
+      { headers: { platform: 'android' } },
+    );
+
+    const downloadUrl = result.data?.DownloadUrl || result.data?.downloadUrl;
+    if (typeof downloadUrl !== 'string' || !downloadUrl) {
+      throw new Error('下载信息响应中没有有效地址');
+    }
+
+    return {
+      ...result,
+      data: { downloadUrl },
+    };
   }
 
   /**
    * 执行一批重命名请求（内部方法）
    */
   private async _renameBatch(renameList: RenameItem[]): Promise<ApiResponse<BatchRenameResponse>> {
-    // 构建 renameList，格式为 "文件ID|新的文件名"
-    const renameListStr = renameList.map((item) => {
-      const fileID = typeof item.fileID === 'string' ? item.fileID : item.fileID.toString();
-      return `${fileID}|${item.newName}`;
-    });
+    const successList: RenameSuccessItem[] = [];
+    const failList: RenameFailItem[] = [];
 
-    const result = await this.httpClient.post<{
-      successList?: Array<{ fileID: number; updateAt: string }>;
-      failList?: Array<{ fileID: number; message: string }>;
-    }>('/api/v1/file/rename', {
-      renameList: renameListStr,
-    });
+    for (const item of renameList) {
+      const fileID = typeof item.fileID === 'string' ? parseInt(item.fileID, 10) : item.fileID;
 
-    if (result.code !== 0) {
-      return {
-        ...result,
-        data: {
-          successList: [],
-          failList: renameList.map((item) => ({
-            fileID: typeof item.fileID === 'string' ? parseInt(item.fileID, 10) : item.fileID,
-            message: result.message || '批量重命名失败',
-          })),
-        },
-      };
+      try {
+        const result = await this.httpClient.post<any>('/api/file/rename', {
+          FileId: fileID,
+          fileName: item.newName,
+          driveId: 0,
+          duplicate: 0,
+          event: 'fileRename',
+        });
+
+        successList.push({
+          fileID,
+          updateAt: result.data?.UpdateAt || result.data?.updateAt || '',
+        });
+      } catch (error) {
+        failList.push({
+          fileID,
+          message: error instanceof Error ? error.message : '重命名请求失败',
+        });
+      }
     }
 
     return {
-      ...result,
+      code: failList.length > 0 ? 1 : 0,
+      message: failList.length > 0 ? '部分文件重命名失败' : 'ok',
       data: {
-        successList: result.data?.successList || [],
-        failList: result.data?.failList || [],
+        successList,
+        failList,
       },
     };
   }
+}
+
+function mapNormalFileItem(raw: any): FileListItem {
+  return {
+    fileId: toNumber(raw?.FileId ?? raw?.FileID),
+    filename: raw?.FileName || '',
+    type: toNumber(raw?.Type),
+    size: toNumber(raw?.Size),
+    etag: raw?.Etag || '',
+    status: toNumber(raw?.Status),
+    parentFileId: toNumber(raw?.ParentFileId),
+    category: toNumber(raw?.Category),
+    trashed: raw?.Trashed ? 1 : 0,
+    ...(raw?.PunishFlag !== undefined && { punishFlag: toNumber(raw.PunishFlag) }),
+    ...(raw?.S3KeyFlag !== undefined && { s3KeyFlag: String(raw.S3KeyFlag) }),
+    ...(raw?.StorageNode !== undefined && { storageNode: String(raw.StorageNode) }),
+    ...(raw?.CreateAt !== undefined && { createAt: String(raw.CreateAt) }),
+    ...(raw?.UpdateAt !== undefined && { updateAt: toNumber(raw.UpdateAt) }),
+  };
+}
+
+function mapNormalFileDetail(raw: any): FileDetailInfo {
+  return {
+    fileId: toNumber(raw?.FileId ?? raw?.FileID),
+    filename: raw?.FileName || '',
+    parentFileId: toNumber(raw?.ParentFileId),
+    type: toNumber(raw?.Type),
+    etag: raw?.Etag || '',
+    size: toNumber(raw?.Size),
+    category: toNumber(raw?.Category),
+    status: toNumber(raw?.Status),
+    punishFlag: toNumber(raw?.PunishFlag),
+    s3KeyFlag: String(raw?.S3KeyFlag || ''),
+    storageNode: String(raw?.StorageNode || ''),
+    trashed: raw?.Trashed ? 1 : 0,
+    createAt: String(raw?.CreateAt || ''),
+    updateAt: toNumber(raw?.UpdateAt),
+  };
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+  if (value === null || value === '') {
+    return fallback;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 // 导出上传模块和类型
