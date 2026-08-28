@@ -111,10 +111,14 @@ export class AuthManager {
         this.setDirectToken(config.token);
       } else if (this.canUseNormalAuth()) {
         /** 账号密码模式：首次请求前按需登录，不阻塞构造函数 */
-        this.forceRefreshToken();
+        void this.forceRefreshToken().catch((error) => {
+          this.logger.warn("Background login failed", error as Error);
+        });
       } else if (this.canUseOpenAuth() && this.baseURL.includes("open-api.123pan.com")) {
         /** 兼容模式：显式使用 Open API baseURL 时保留旧凭证登录 */
-        this.forceRefreshToken();
+        void this.forceRefreshToken().catch((error) => {
+          this.logger.warn("Background login failed", error as Error);
+        });
       }
     } else {
       this.logger.info("Using cached access token");
