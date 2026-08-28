@@ -10,6 +10,7 @@ export interface DriveItem {
   id: string
   name: string
   type: DriveFileType
+  parentId: string | null
   size: number
   updatedAt: string
   starred?: boolean

@@ -30,6 +30,16 @@ function handleUpload(): void {
     icon: 'i-lucide-upload'
   })
 }
+
+function handleMove(id: string, targetId: string | null): void {
+  const item = items.value.find((entry) => entry.id === id)
+  if (!item || item.parentId === targetId) return
+  const targetName = targetId
+    ? (items.value.find((entry) => entry.id === targetId)?.name ?? '全部文件')
+    : '全部文件'
+  item.parentId = targetId
+  toast.add({ title: `已移动「${item.name}」至「${targetName}」`, icon: 'i-lucide-folder-input' })
+}
 </script>
 
 <template>
@@ -65,7 +75,7 @@ function handleUpload(): void {
         </header>
 
         <div class="min-h-0 flex-1 p-4">
-          <FileTable v-model:search="search" :items="items" />
+          <FileTable v-model:search="search" :items="items" @move="handleMove" />
         </div>
       </main>
     </div>
