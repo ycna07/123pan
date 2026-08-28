@@ -26,6 +26,13 @@ Workspace members: `apps/*`, `packages/*`, `packages/123pan-api-sdk/packages/*` 
 - `packages/123pan-api-sdk` — import as `@sharef/123pan-sdk` (`workspace:*` dep of the app); ESM via `dist/index.esm.js`, CJS via `dist/index.cjs`.
 - `packages/ui-components` (`@123pan/ui`), `packages/shared-types` (`@123pan/shared-types`), `packages/core-logic` (`@123pan/core-logic`, skeleton) — shared packages export **source files** directly (`exports: "./src/index.ts"`, no build step); the app's vite/vue-tsc consume them as workspace links.
 
+### Renderer UI stack (Nuxt UI v4)
+
+- `@nuxt/ui` + Tailwind v4. The `ui()` plugin in `electron.vite.config.ts` **includes `@tailwindcss/vite`** — don't add it separately. `main.ts` must `app.use(ui)` from `@nuxt/ui/vue-plugin`; CSS entry is `@import 'tailwindcss'; @import '@nuxt/ui';`.
+- `vue-router` is installed only because Nuxt UI's runtime Link overrides import it; the app itself has no routes yet.
+- `U*` components and Nuxt UI composables are auto-imported by the plugin. Generated `components.d.ts` / `auto-imports.d.ts` land in `apps/desktop/src/renderer/` (covered by `tsconfig.web.json` via `src/renderer/*.d.ts`) and are committed — regenerate by running any vite dev/build.
+- Icons come from installed `@iconify-json/*` collections and are client-bundled; add the collection package when using a new icon prefix. Fonts are disabled by the plugin in vite mode (no network fetch). Renderer CSP in `index.html` is `default-src 'self'` — works because icons are bundled; keep it that way.
+
 ### SDK package (`packages/123pan-api-sdk`)
 
 - Keeps its own toolchain (rollup, jest, eslint 8); root eslint/prettier ignore this subtree — don't run root formatters over it.
@@ -37,7 +44,7 @@ Workspace members: `apps/*`, `packages/*`, `packages/123pan-api-sdk/packages/*` 
 
 - `apps/desktop/package.json` runs `postinstall: electron-builder install-app-deps` — needed for native deps; don't bypass.
 - `.npmrc` (repo root) points Electron/electron-builder binaries at npmmirror mirrors; installs fail offline or if mirrors are unreachable.
-- `pnpm-workspace.yaml` sets `shamefullyHoist: true` and `allowBuilds` for electron/esbuild — keep when touching install config.
+- `pnpm-workspace.yaml` sets `shamefullyHoist: true` and `allowBuilds` for electron/esbuild/vue-demi — keep when touching install config.
 - ESLint enforces `vue/block-lang`: every SFC `<script>` block must have `lang="ts"`.
 - Prettier: no semicolons, single quotes, width 100, no trailing commas.
 - Package under `apps/desktop/electron-builder.yml` uses hardcoded `123pan-` in `artifactName` (the package name is scoped, `${name}` would leak `@123pan/desktop` into filenames).
