@@ -26,6 +26,11 @@ Workspace members: `apps/*`, `packages/*`, `packages/123pan-api-sdk/packages/*` 
 - `packages/123pan-api-sdk` — import as `@sharef/123pan-sdk` (`workspace:*` dep of the app); ESM via `dist/index.esm.js`, CJS via `dist/index.cjs`.
 - `packages/ui-components` (`@123pan/ui`), `packages/shared-types` (`@123pan/shared-types`), `packages/core-logic` (`@123pan/core-logic`, skeleton) — shared packages export **source files** directly (`exports: "./src/index.ts"`, no build step); the app's vite/vue-tsc consume them as workspace links.
 
+### Auth flow
+
+- Main process owns the SDK (`src/main/auth.ts`): `auth:login` (passport+password → `sdk.getTokenInfo()`), `auth:status`, `auth:logout`. Token is persisted to `userData/auth-token.json` encrypted via Electron `safeStorage` (plaintext fallback when the keyring is unavailable) and restored on startup as a direct `token`. The SDK's own plaintext file cache is disabled (`cacheConfig: { enabled: false }`) — don't re-enable it.
+- Renderer consumes auth only through `window.api` (typed in `src/preload/index.d.ts`); `App.vue` gates the drive UI on the auth status.
+
 ### Renderer UI stack (Nuxt UI v4)
 
 - `@nuxt/ui` + Tailwind v4. The `ui()` plugin in `electron.vite.config.ts` **includes `@tailwindcss/vite`** — don't add it separately. `main.ts` must `app.use(ui)` from `@nuxt/ui/vue-plugin`; CSS entry is `@import 'tailwindcss'; @import '@nuxt/ui';`.

@@ -15,3 +15,13 @@ export interface DriveItem {
   updatedAt: string
   starred?: boolean
 }
+
+export interface LoginCredentials {
+  passport: string
+  password: string
+}
+
+export interface AuthStatus {
+  authenticated: boolean
+  account?: string
+}
