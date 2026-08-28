@@ -13,11 +13,16 @@ const search = defineModel<string>('search', { default: '' })
 
 const toast = useToast()
 
+const rootRef = ref<HTMLElement | null>(null)
 const currentFolderId = ref<string | null>(null)
-const selectedId = ref<string | null>(null)
 const rowSelection = ref<Record<string, boolean>>({})
 const draggingId = ref<string | null>(null)
 const dragOverId = ref<string | null>(null)
+const marquee = ref<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
+const marqueeActive = ref(false)
+const suppressClick = ref(false)
+
+const MARQUEE_THRESHOLD = 4
 
 const typeIcons: Record<DriveFileType, string> = {
   folder: 'i-lucide-folder',
@@ -52,12 +57,28 @@ const filteredItems = computed(() => {
   return visibleItems.value.filter((item) => item.name.toLowerCase().includes(keyword))
 })
 
+const selectedCount = computed(() => Object.values(rowSelection.value).filter(Boolean).length)
+
 const columns: TableColumn<DriveItem>[] = [
+  { id: 'select', enableSorting: false },
   { accessorKey: 'name', header: '名称' },
   { accessorKey: 'size', header: '大小' },
   { accessorKey: 'updatedAt', header: '修改时间' },
   { id: 'actions', header: '', enableSorting: false }
 ]
+
+const marqueeStyle = computed(() => {
+  if (!marqueeActive.value || !marquee.value) return undefined
+  const root = rootRef.value
+  if (!root) return undefined
+  const rootRect = root.getBoundingClientRect()
+  return {
+    left: `${Math.min(marquee.value.startX, marquee.value.endX) - rootRect.left}px`,
+    top: `${Math.min(marquee.value.startY, marquee.value.endY) - rootRect.top}px`,
+    width: `${Math.abs(marquee.value.endX - marquee.value.startX)}px`,
+    height: `${Math.abs(marquee.value.endY - marquee.value.startY)}px`
+  }
+})
 
 function getRowId(row: DriveItem): string {
   return row.id
@@ -65,12 +86,10 @@ function getRowId(row: DriveItem): string {
 
 function navigateTo(folderId: string | null): void {
   currentFolderId.value = folderId
-  selectedId.value = null
   rowSelection.value = {}
 }
 
 function selectItem(item: DriveItem): void {
-  selectedId.value = item.id
   rowSelection.value = { [item.id]: true }
 }
 
@@ -118,6 +137,72 @@ function onDrop(target: DriveItem | null): void {
   if (!dragging) return
   if (target && !canDropInto(target)) return
   emit('move', dragging, target ? target.id : null)
+}
+
+function onMarqueeStart(event: PointerEvent): void {
+  if (event.button !== 0) return
+  const target = event.target as HTMLElement
+  if (
+    target.closest('tr') ||
+    target.closest('nav') ||
+    target.closest('button') ||
+    target.closest('input')
+  )
+    return
+  if (!rootRef.value) return
+  event.preventDefault()
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  marquee.value = {
+    startX: event.clientX,
+    startY: event.clientY,
+    endX: event.clientX,
+    endY: event.clientY
+  }
+  marqueeActive.value = false
+}
+
+function onMarqueeMove(event: PointerEvent): void {
+  if (!marquee.value) return
+  if (!marqueeActive.value) {
+    const dx = Math.abs(event.clientX - marquee.value.startX)
+    const dy = Math.abs(event.clientY - marquee.value.startY)
+    if (dx < MARQUEE_THRESHOLD && dy < MARQUEE_THRESHOLD) return
+    marqueeActive.value = true
+    suppressClick.value = true
+    document.body.style.userSelect = 'none'
+  }
+  marquee.value = { ...marquee.value, endX: event.clientX, endY: event.clientY }
+  applyMarqueeSelection()
+}
+
+function applyMarqueeSelection(): void {
+  const root = rootRef.value
+  const rect = marquee.value
+  if (!root || !rect || !marqueeActive.value) return
+  const rootRect = root.getBoundingClientRect()
+  const left = Math.min(rect.startX, rect.endX) - rootRect.left
+  const top = Math.min(rect.startY, rect.endY) - rootRect.top
+  const right = Math.max(rect.startX, rect.endX) - rootRect.left
+  const bottom = Math.max(rect.startY, rect.endY) - rootRect.top
+  const selection: Record<string, boolean> = {}
+  root.querySelectorAll<HTMLTableRowElement>('tbody tr').forEach((rowEl, index) => {
+    const rowRect = rowEl.getBoundingClientRect()
+    const intersects =
+      rowRect.left - rootRect.left < right &&
+      rowRect.right - rootRect.left > left &&
+      rowRect.top - rootRect.top < bottom &&
+      rowRect.bottom - rootRect.top > top
+    const item = filteredItems.value[index]
+    if (intersects && item) selection[item.id] = true
+  })
+  rowSelection.value = selection
+}
+
+function onMarqueeEnd(): void {
+  if (!marquee.value) return
+  marquee.value = null
+  marqueeActive.value = false
+  document.body.style.userSelect = ''
 }
 
 interface ItemEventHandlers {
@@ -201,14 +286,30 @@ function rowActions(item: DriveItem): DropdownMenuItem[][] {
 }
 
 function onContainerClick(event: MouseEvent): void {
+  if (suppressClick.value) {
+    suppressClick.value = false
+    return
+  }
   if ((event.target as HTMLElement).closest('tr')) return
-  selectedId.value = null
   rowSelection.value = {}
 }
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-default">
+  <div
+    ref="rootRef"
+    class="relative flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-default"
+    @pointerdown="onMarqueeStart"
+    @pointermove="onMarqueeMove"
+    @pointerup="onMarqueeEnd"
+    @pointercancel="onMarqueeEnd"
+  >
+    <div
+      v-if="marqueeStyle"
+      class="pointer-events-none absolute z-20 rounded-sm border border-primary bg-primary/10"
+      :style="marqueeStyle"
+    />
+
     <div class="flex items-center justify-between gap-4 border-b border-default px-4 py-2">
       <nav class="flex min-w-0 items-center" aria-label="面包屑">
         <button
@@ -227,7 +328,9 @@ function onContainerClick(event: MouseEvent): void {
           />
         </button>
       </nav>
-      <span class="shrink-0 text-xs text-muted">共 {{ filteredItems.length }} 项</span>
+      <span class="shrink-0 text-xs text-muted">
+        {{ selectedCount > 0 ? `已选 ${selectedCount} 项 / ` : '' }}共 {{ filteredItems.length }} 项
+      </span>
     </div>
 
     <UTable
@@ -235,12 +338,28 @@ function onContainerClick(event: MouseEvent): void {
       :data="filteredItems"
       :columns="columns"
       :get-row-id="getRowId"
-      :row-selection-options="{ enableRowSelection: true, enableMultiRowSelection: false }"
+      :row-selection-options="{ enableRowSelection: true }"
       :ui="{ tr: 'cursor-pointer' }"
       sticky
       class="min-h-0 flex-1"
       @click="onContainerClick"
     >
+      <template #select-header="{ table }">
+        <UCheckbox
+          :model-value="
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && 'indeterminate')
+          "
+          @update:model-value="table.toggleAllPageRowsSelected(Boolean($event))"
+        />
+      </template>
+      <template #select-cell="{ row }">
+        <UCheckbox
+          :model-value="row.getIsSelected()"
+          @update:model-value="row.toggleSelected(Boolean($event))"
+          @click.stop
+        />
+      </template>
       <template #name-cell="{ row }">
         <div
           draggable="true"

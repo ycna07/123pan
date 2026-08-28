@@ -17,6 +17,7 @@ declare module 'vue' {
     UApp: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/components/App.vue')['default']
     UAvatar: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/components/Avatar.vue')['default']
     UButton: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/components/Button.vue')['default']
+    UCheckbox: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/components/Checkbox.vue')['default']
     UDropdownMenu: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/components/DropdownMenu.vue')['default']
     UIcon: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/vue/components/Icon.vue')['default']
     UInput: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/components/Input.vue')['default']
