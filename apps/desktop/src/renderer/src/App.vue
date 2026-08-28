@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import Versions from './components/Versions.vue'
+import { reactive } from 'vue'
+import { Versions } from '@123pan/ui'
+
+const versions = reactive({ ...window.electron.process.versions })
 
 const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
 </script>
@@ -22,5 +25,5 @@ const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
       <a target="_blank" rel="noreferrer" @click="ipcHandle">Send IPC</a>
     </div>
   </div>
-  <Versions />
+  <Versions :versions="versions" />
 </template>

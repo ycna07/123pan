@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import type { AppVersions } from '@123pan/shared-types'
 
-const versions = reactive({ ...window.electron.process.versions })
+defineProps<{ versions: AppVersions }>()
 </script>
 
 <template>
