@@ -28,5 +28,7 @@ declare module 'vue' {
     UNavigationMenu: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/components/NavigationMenu.vue')['default']
     UProgress: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/components/Progress.vue')['default']
     UTable: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/components/Table.vue')['default']
+    UTabs: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/components/Tabs.vue')['default']
+    UTextarea: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/components/Textarea.vue')['default']
   }
 }

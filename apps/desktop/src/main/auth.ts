@@ -1,4 +1,4 @@
-import { app, ipcMain, safeStorage } from 'electron'
+import { app, BrowserWindow, ipcMain, safeStorage, session } from 'electron'
 import { join } from 'path'
 import { readFile, rm, writeFile } from 'fs/promises'
 import { Pan123SDK } from '@sharef/123pan-sdk'
@@ -6,13 +6,29 @@ import type { AuthStatus, LoginCredentials } from '@123pan/shared-types'
 
 interface StoredToken {
   account: string
+  nickname?: string
+  avatar?: string
   token: string
   encrypted: boolean
   savedAt: number
 }
 
+interface AuthProfile {
+  account: string
+  nickname?: string
+  avatar?: string
+}
+
 let sdk: Pan123SDK | null = null
 let account: string | null = null
+let nickname: string | null = null
+let avatar: string | null = null
+
+let qrWindow: BrowserWindow | null = null
+let qrPollTimer: NodeJS.Timeout | null = null
+
+const QR_LOGIN_URL = 'https://www.123pan.com/login/'
+const JWT_PATTERN = /eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g
 
 function tokenFilePath(): string {
   return join(app.getPath('userData'), 'auth-token.json')
@@ -35,8 +51,14 @@ function decryptToken(stored: StoredToken): string | null {
   }
 }
 
-async function persistToken(accountName: string, token: string): Promise<void> {
-  const payload: StoredToken = { account: accountName, ...encryptToken(token), savedAt: Date.now() }
+async function persistToken(profile: AuthProfile, token: string): Promise<void> {
+  const payload: StoredToken = {
+    account: profile.account,
+    ...(profile.nickname && { nickname: profile.nickname }),
+    ...(profile.avatar && { avatar: profile.avatar }),
+    ...encryptToken(token),
+    savedAt: Date.now()
+  }
   await writeFile(tokenFilePath(), JSON.stringify(payload, null, 2), 'utf-8')
 }
 
@@ -45,7 +67,49 @@ async function clearPersistedToken(): Promise<void> {
 }
 
 function createSdkWithToken(token: string): Pan123SDK {
-  return new Pan123SDK({ token, cacheConfig: { enabled: false } })
+  return new Pan123SDK({
+    token,
+    cacheConfig: { enabled: false },
+    loggerConfig: { enableConsole: false }
+  })
+}
+
+function decodeJwtExpirationMs(token: string): number | null {
+  const payload = token.split('.')[1]
+  if (!payload) return null
+  try {
+    const claims = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8')) as { exp?: number }
+    return typeof claims.exp === 'number' ? claims.exp * 1000 : null
+  } catch {
+    return null
+  }
+}
+
+function extractTokenCandidates(raw: string): string[] {
+  const found = new Map<string, number | null>()
+  for (const match of raw.match(JWT_PATTERN) ?? []) {
+    if (!found.has(match)) found.set(match, decodeJwtExpirationMs(match))
+  }
+  return [...found.entries()]
+    .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
+    .slice(0, 5)
+    .map(([token]) => token)
+}
+
+async function validateToken(token: string): Promise<AuthProfile | null> {
+  const instance = createSdkWithToken(token)
+  try {
+    const response = await instance.user.getUserInfo()
+    const info = response.data
+    if (!info?.uid) return null
+    return {
+      account: info.passport || info.nickname || `uid:${info.uid}`,
+      ...(info.nickname && { nickname: info.nickname }),
+      ...(info.headImage && { avatar: info.headImage })
+    }
+  } catch {
+    return null
+  }
 }
 
 export async function initAuth(): Promise<void> {
@@ -58,11 +122,21 @@ export async function initAuth(): Promise<void> {
       await clearPersistedToken()
       return
     }
-    sdk = createSdkWithToken(token)
+    const instance = createSdkWithToken(token)
+    const tokenInfo = await instance.getTokenInfo()
+    if (!tokenInfo || tokenInfo.expiresAt <= Date.now()) {
+      await clearPersistedToken()
+      return
+    }
+    sdk = instance
     account = stored.account
+    nickname = stored.nickname ?? null
+    avatar = stored.avatar ?? null
   } catch {
     sdk = null
     account = null
+    nickname = null
+    avatar = null
   }
 }
 
@@ -71,7 +145,26 @@ export function getSdk(): Pan123SDK | null {
 }
 
 export function getAuthStatus(): AuthStatus {
-  return { authenticated: !!sdk, account: account ?? undefined }
+  return {
+    authenticated: !!sdk,
+    ...(account && { account }),
+    ...(nickname && { nickname }),
+    ...(avatar && { avatar })
+  }
+}
+
+function applyLogin(profile: AuthProfile, instance: Pan123SDK): void {
+  sdk = instance
+  account = profile.account
+  nickname = profile.nickname ?? null
+  avatar = profile.avatar ?? null
+}
+
+function broadcastLoginSuccess(): void {
+  const status = getAuthStatus()
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('auth:login-success', status)
+  }
 }
 
 function toLoginError(error: unknown): Error {
@@ -91,7 +184,24 @@ function toLoginError(error: unknown): Error {
   return new Error('登录失败，请稍后重试')
 }
 
-async function login(credentials: LoginCredentials): Promise<AuthStatus> {
+async function fetchProfile(instance: Pan123SDK, fallbackAccount: string): Promise<AuthProfile> {
+  try {
+    const response = await instance.user.getUserInfo()
+    const info = response.data
+    if (info?.uid) {
+      return {
+        account: info.passport || info.nickname || fallbackAccount,
+        ...(info.nickname && { nickname: info.nickname }),
+        ...(info.headImage && { avatar: info.headImage })
+      }
+    }
+  } catch {
+    /* profile is optional; keep fallback */
+  }
+  return { account: fallbackAccount }
+}
+
+async function loginWithPassword(credentials: LoginCredentials): Promise<AuthStatus> {
   const passport = credentials.passport.trim()
   if (!passport || !credentials.password) {
     throw new Error('请输入账号和密码')
@@ -99,20 +209,105 @@ async function login(credentials: LoginCredentials): Promise<AuthStatus> {
   const instance = new Pan123SDK({
     passport,
     password: credentials.password,
-    cacheConfig: { enabled: false }
+    cacheConfig: { enabled: false },
+    loggerConfig: { enableConsole: false }
   })
   try {
     const tokenInfo = await instance.getTokenInfo()
     if (!tokenInfo) {
       throw new Error('登录失败，未获取到有效凭证')
     }
-    await persistToken(passport, tokenInfo.accessToken)
-    sdk = instance
-    account = passport
-    return { authenticated: true, account: passport }
+    const profile = await fetchProfile(instance, passport)
+    await persistToken(profile, tokenInfo.accessToken)
+    applyLogin(profile, instance)
+    broadcastLoginSuccess()
+    return getAuthStatus()
   } catch (error) {
     throw toLoginError(error)
   }
+}
+
+async function loginWithCookie(raw: string): Promise<AuthStatus> {
+  if (!raw.trim()) {
+    throw new Error('请先粘贴 Cookie 或 token 内容')
+  }
+  const candidates = extractTokenCandidates(raw)
+  if (!candidates.length) {
+    throw new Error('未在粘贴内容中找到登录凭证，请确认复制了完整的 Cookie 或 token')
+  }
+  for (const token of candidates) {
+    const profile = await validateToken(token)
+    if (profile) {
+      const instance = createSdkWithToken(token)
+      await persistToken(profile, token)
+      applyLogin(profile, instance)
+      broadcastLoginSuccess()
+      return getAuthStatus()
+    }
+  }
+  throw new Error('Cookie 校验失败：凭证无效或已过期，请重新复制')
+}
+
+function stopQrPolling(): void {
+  if (qrPollTimer) {
+    clearInterval(qrPollTimer)
+    qrPollTimer = null
+  }
+}
+
+async function harvestQrCandidates(): Promise<void> {
+  const win = qrWindow
+  if (!win || win.isDestroyed()) return
+  try {
+    const cookies = await session.defaultSession.cookies.get({})
+    const cookieText = cookies
+      .filter((cookie) => cookie.domain?.includes('123pan'))
+      .map((cookie) => `${cookie.name}=${cookie.value}`)
+      .join('; ')
+    const storageText = await win.webContents
+      .executeJavaScript('JSON.stringify(window.localStorage)')
+      .catch(() => '')
+    const candidates = extractTokenCandidates(`${cookieText}\n${storageText}`)
+    for (const token of candidates.slice(0, 3)) {
+      const profile = await validateToken(token)
+      if (!profile) continue
+      const instance = createSdkWithToken(token)
+      await persistToken(profile, token)
+      applyLogin(profile, instance)
+      broadcastLoginSuccess()
+      if (qrWindow && !qrWindow.isDestroyed()) qrWindow.close()
+      return
+    }
+  } catch {
+    /* window may be navigating; retry on next tick */
+  }
+}
+
+function openQrLoginWindow(): void {
+  if (qrWindow && !qrWindow.isDestroyed()) {
+    qrWindow.focus()
+    return
+  }
+  qrWindow = new BrowserWindow({
+    width: 440,
+    height: 680,
+    title: '123云盘 登录',
+    autoHideMenuBar: true,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+  qrWindow.loadURL(QR_LOGIN_URL)
+  qrWindow.on('closed', () => {
+    qrWindow = null
+    stopQrPolling()
+  })
+  stopQrPolling()
+  qrPollTimer = setInterval(() => {
+    void harvestQrCandidates()
+  }, 2000)
 }
 
 async function logout(): Promise<void> {
@@ -121,12 +316,18 @@ async function logout(): Promise<void> {
   } finally {
     sdk = null
     account = null
+    nickname = null
+    avatar = null
     await clearPersistedToken()
   }
 }
 
 export function registerAuthHandlers(): void {
-  ipcMain.handle('auth:login', (_event, credentials: LoginCredentials) => login(credentials))
+  ipcMain.handle('auth:login', (_event, credentials: LoginCredentials) =>
+    loginWithPassword(credentials)
+  )
+  ipcMain.handle('auth:login-cookie', (_event, raw: string) => loginWithCookie(raw))
+  ipcMain.handle('auth:open-qr', () => openQrLoginWindow())
   ipcMain.handle('auth:status', () => getAuthStatus())
   ipcMain.handle('auth:logout', () => logout())
 }

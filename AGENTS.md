@@ -28,8 +28,9 @@ Workspace members: `apps/*`, `packages/*`, `packages/123pan-api-sdk/packages/*` 
 
 ### Auth flow
 
-- Main process owns the SDK (`src/main/auth.ts`): `auth:login` (passport+password → `sdk.getTokenInfo()`), `auth:status`, `auth:logout`. Token is persisted to `userData/auth-token.json` encrypted via Electron `safeStorage` (plaintext fallback when the keyring is unavailable) and restored on startup as a direct `token`. The SDK's own plaintext file cache is disabled (`cacheConfig: { enabled: false }`) — don't re-enable it.
-- Renderer consumes auth only through `window.api` (typed in `src/preload/index.d.ts`); `App.vue` gates the drive UI on the auth status.
+- Main process owns the SDK (`src/main/auth.ts`): `auth:login` (passport+password → `sdk.getTokenInfo()`), `auth:login-cookie` (JWT scan over pasted cookie/token, validated via `user.getUserInfo()`), `auth:open-qr` (embedded BrowserWindow on `www.123pan.com/login/`, polls cookies+localStorage for 123pan JWTs — 123pan's QR API itself is undocumented, hence the embedded official page), `auth:status`, `auth:logout`. `auth:login-success` is broadcast to all windows.
+- Token + profile (account/nickname/avatar) persist to `userData/auth-token.json`; token encrypted via Electron `safeStorage` (plaintext fallback when the keyring is unavailable). Restored on startup as direct `token` (expired tokens discarded). The SDK's own plaintext file cache is disabled (`cacheConfig: { enabled: false }`) — don't re-enable it.
+- Renderer consumes auth only through `window.api` (typed in `src/preload/index.d.ts`); `App.vue` gates the drive UI on the auth status; LoginForm has password/cookie/QR tabs.
 
 ### Renderer UI stack (Nuxt UI v4)
 

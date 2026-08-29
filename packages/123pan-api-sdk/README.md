@@ -1,5 +1,5 @@
 # 123Pan API SDK
-
+fork form https://github.com/Shijf/123pan-api-sdk
 > 123Pan 普通用户 API 的 Node.js SDK，提供完整的 TypeScript 类型支持
 
 [![npm version](https://img.shields.io/npm/v/@sharef/123pan-sdk.svg)](https://www.npmjs.com/package/@sharef/123pan-sdk)

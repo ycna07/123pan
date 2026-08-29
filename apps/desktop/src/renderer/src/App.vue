@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useToast } from '@nuxt/ui/composables'
-import type { DriveItem } from '@123pan/shared-types'
+import type { AuthStatus, DriveItem } from '@123pan/shared-types'
 import { mockDriveItems } from '@renderer/data/files'
 
 const toast = useToast()
 
 const authed = ref<boolean | null>(null)
 const account = ref('')
+const nickname = ref('')
+const avatar = ref('')
 const search = ref('')
 const items = ref<DriveItem[]>(mockDriveItems)
 
@@ -32,25 +34,37 @@ const userMenuItems = [
     onSelect: async () => {
       await window.api.logout()
       account.value = ''
+      nickname.value = ''
+      avatar.value = ''
       authed.value = false
     }
   }
 ]
 
+function applyAuthStatus(status: AuthStatus): void {
+  account.value = status.account ?? ''
+  nickname.value = status.nickname ?? ''
+  avatar.value = status.avatar ?? ''
+  authed.value = status.authenticated
+}
+
 onMounted(async () => {
+  window.api.onLoginSuccess((status) => {
+    applyAuthStatus(status)
+    const displayName = status.nickname || status.account || '用户'
+    toast.add({ title: `欢迎回来，${displayName}`, icon: 'i-lucide-party-popper' })
+  })
   try {
-    const status = await window.api.getAuthStatus()
-    authed.value = status.authenticated
-    account.value = status.account ?? ''
+    applyAuthStatus(await window.api.getAuthStatus())
   } catch {
     authed.value = false
   }
 })
 
-function handleAuthenticated(authenticatedAccount: string): void {
-  account.value = authenticatedAccount
-  authed.value = true
-  toast.add({ title: `欢迎回来，${authenticatedAccount}`, icon: 'i-lucide-party-popper' })
+function handleAuthenticated(status: AuthStatus): void {
+  applyAuthStatus(status)
+  const displayName = status.nickname || status.account || '用户'
+  toast.add({ title: `欢迎回来，${displayName}`, icon: 'i-lucide-party-popper' })
 }
 
 function handleUpload(): void {
@@ -103,9 +117,16 @@ function handleMove(id: string, targetId: string | null): void {
             class="ml-auto w-64"
           />
           <UButton icon="i-lucide-upload" size="sm" @click="handleUpload">上传文件</UButton>
-          <span class="hidden max-w-40 truncate text-sm text-muted md:block">{{ account }}</span>
+          <span class="hidden max-w-40 truncate text-sm text-muted md:block">
+            {{ nickname || account }}
+          </span>
           <UDropdownMenu :items="userMenuItems" :content="{ align: 'end' }">
-            <UAvatar icon="i-lucide-user" size="sm" class="cursor-pointer" />
+            <UAvatar
+              :src="avatar || undefined"
+              icon="i-lucide-user"
+              size="sm"
+              class="cursor-pointer"
+            />
           </UDropdownMenu>
         </header>
 
