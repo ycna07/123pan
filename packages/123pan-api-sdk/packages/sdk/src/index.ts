@@ -42,7 +42,7 @@ export class Pan123SDK {
   public readonly saaa:any;
 
   constructor(config: SdkConfig) {
-    // 认证配置由 AuthManager 校验：token、passport+password，或显式 Open API 兼容模式。
+    // 认证配置由 AuthManager 校验：token 或 passport+password。
     this.httpClient = new HttpClient(config);
 
     // 初始化各功能模块
@@ -76,6 +76,20 @@ export class Pan123SDK {
    */
   async refreshToken() {
     return this.httpClient.getAuthManager().forceRefreshToken();
+  }
+
+  /**
+   * 生成扫码登录二维码
+   */
+  async createQrLogin() {
+    return this.httpClient.getAuthManager().generateQrLogin();
+  }
+
+  /**
+   * 轮询扫码登录结果；登录成功后当前实例已持有 token，可直接调用其它 API
+   */
+  async pollQrLogin(uniID: string) {
+    return this.httpClient.getAuthManager().getQrLoginResult(uniID);
   }
 
   /**

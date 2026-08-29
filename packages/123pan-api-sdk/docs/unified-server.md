@@ -110,7 +110,6 @@ yarn build
 # 可以直接使用curl测试API
 curl -X POST http://localhost:3000/api/v1/access_token \
   -H "Content-Type: application/json" \
-  -d '{"clientID":"test-client-id","clientSecret":"test-client-secret"}'
 ```
 
 ## 📊 优势对比

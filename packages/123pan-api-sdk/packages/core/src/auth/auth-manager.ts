@@ -10,14 +10,16 @@ import type {
   AccessTokenResponse,
   TokenInfo,
   ApiError,
+  ApiResponse,
+  QrCodeLoginStatus,
+  QrLoginPollResult,
+  QrLoginSession,
 } from "../types";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
 export class AuthManager {
-  private clientID: string;
-  private clientSecret: string;
   private passport: string;
   private password: string;
   private baseURL: string;
@@ -39,8 +41,6 @@ export class AuthManager {
     this.config = config;
     this.passport = config.passport || "";
     this.password = config.password || "";
-    this.clientID = config.clientID || "";
-    this.clientSecret = config.clientSecret || "";
     this.baseURL = config.baseURL || "https://www.123pan.com/b";
     this.loginBaseURL = config.loginBaseURL || "https://login.123pan.com/api";
     this.timeout = config.timeout || 30000;
@@ -111,11 +111,6 @@ export class AuthManager {
         this.setDirectToken(config.token);
       } else if (this.canUseNormalAuth()) {
         /** 账号密码模式：首次请求前按需登录，不阻塞构造函数 */
-        void this.forceRefreshToken().catch((error) => {
-          this.logger.warn("Background login failed", error as Error);
-        });
-      } else if (this.canUseOpenAuth() && this.baseURL.includes("open-api.123pan.com")) {
-        /** 兼容模式：显式使用 Open API baseURL 时保留旧凭证登录 */
         void this.forceRefreshToken().catch((error) => {
           this.logger.warn("Background login failed", error as Error);
         });
@@ -230,24 +225,8 @@ export class AuthManager {
         if (isSuccessCode(response.data.code)) {
           token = response.data.data?.token || response.data.data?.accessToken || "";
         }
-      } else if (this.canUseOpenAuth()) {
-        this.logger.debug("Requesting Open API access token");
-        const response = await this.httpClient.post<AccessTokenResponse>(
-          "/api/v1/access_token",
-          {
-            clientID: this.clientID,
-            clientSecret: this.clientSecret,
-          },
-        );
-        responseStatus = response.status;
-        responseBody = response.data;
-        if (isSuccessCode(response.data.code)) {
-          token = response.data.data?.accessToken || "";
-        }
       } else {
-        throw new Error(
-          "认证配置无效：请提供 token、passport + password，或显式使用 Open API 的 clientID + clientSecret",
-        );
+        throw new Error("认证配置无效：请提供 token 或 passport + password");
       }
 
       this.logger.debug("Token API response received", {
@@ -303,67 +282,68 @@ export class AuthManager {
   }
 
   /**
+   * 生成扫码登录二维码
+   */
+  async generateQrLogin(): Promise<QrLoginSession> {
+    const response = await this.httpClient.get<
+      ApiResponse<{ uniID?: string; url?: string }>
+    >(`${this.loginBaseURL}/user/qr-code/generate`);
+    const data = response.data?.data;
+    if (!data?.uniID || !data?.url) {
+      throw new Error("生成二维码失败：响应中没有有效的 uniID");
+    }
+    const qrUrl = `${data.url}?env=production&uniID=${data.uniID}&source=123pan&type=login`;
+    this.logger.debug("QR login session generated", { uniID: data.uniID });
+    return { uniID: data.uniID, qrUrl };
+  }
+
+  /**
+   * 轮询扫码登录结果
+   *
+   * loginStatus 含义：0 等待扫码；1 已扫码；2 已取消；3 已登录（处理中）；4 已失效。
+   * 登录成功（code=200 且返回 token）时会把 token 写入当前实例，之后可直接调用其它 API。
+   */
+  async getQrLoginResult(uniID: string): Promise<QrLoginPollResult> {
+    if (!uniID) {
+      throw new Error("轮询扫码结果失败：uniID 不能为空");
+    }
+    const response = await this.httpClient.get<
+      ApiResponse<{ loginStatus?: QrCodeLoginStatus; token?: string }>
+    >(`${this.loginBaseURL}/user/qr-code/result`, {
+      params: { uniID },
+    });
+    const body = response.data;
+    if (body.code === 200 && body.data?.token) {
+      const token = body.data.token;
+      this.logger.info("QR login succeeded");
+      this.setDirectToken(token);
+      return { status: "success", token };
+    }
+    switch (body.data?.loginStatus) {
+      case 0:
+        return { status: "waiting" };
+      case 1:
+        return { status: "scanned" };
+      case 3:
+        return { status: "logging" };
+      case 2:
+        return { status: "cancelled", message: body.message || "二维码已被取消" };
+      case 4:
+        return { status: "expired", message: body.message || "二维码已失效" };
+      default:
+        throw new Error(
+          `查询扫码结果失败：${body.message || `未知状态 ${String(body.data?.loginStatus)}`}`,
+        );
+    }
+  }
+
+  /**
    * 异步初始化多级缓存管理器
    */
   private async initializeCacheManager(): Promise<void> {
     try {
-      // 动态导入RedisCacheAdapter以避免Redis包的编译时依赖
-      const { RedisCacheAdapter } = await import("../cache/redis-adapter");
-      let redisAdapter: any = undefined;
-
-      if (this.config.cacheConfig?.redis?.enabled) {
-        try {
-          if (this.config.cacheConfig.redis.client) {
-            // 使用提供的Redis客户端实例
-            redisAdapter = new RedisCacheAdapter(
-              this.config.cacheConfig.redis.client,
-              this.config.cacheConfig.redis.keyPrefix || "123pan:token:",
-              this.logger,
-            );
-          } else if (this.config.cacheConfig.redis.url) {
-            // 从URL创建Redis客户端
-            const { createClient } = await import("redis");
-            const redisClient = createClient({
-              url: this.config.cacheConfig.redis.url,
-            });
-            await redisClient.connect();
-            redisAdapter = new RedisCacheAdapter(
-              redisClient,
-              this.config.cacheConfig.redis.keyPrefix || "123pan:token:",
-              this.logger,
-            );
-          } else if (
-            this.config.cacheConfig.redis.host &&
-            this.config.cacheConfig.redis.port
-          ) {
-            // 从host和port创建Redis客户端
-            const { createClient } = await import("redis");
-            const redisClient = createClient({
-              socket: {
-                host: this.config.cacheConfig.redis.host,
-                port: this.config.cacheConfig.redis.port,
-              },
-              password: this.config.cacheConfig.redis.password,
-              database: this.config.cacheConfig.redis.db || 0,
-            });
-            await redisClient.connect();
-            redisAdapter = new RedisCacheAdapter(
-              redisClient,
-              this.config.cacheConfig.redis.keyPrefix || "123pan:token:",
-              this.logger,
-            );
-          }
-        } catch (error) {
-          this.logger.warn(
-            "Failed to initialize Redis cache adapter",
-            error as Error,
-          );
-        }
-      }
-
       this.cacheManager = new MultiLevelCacheManager(
         {
-          redisAdapter,
           cacheEnabled: this.cacheEnabled,
           cacheFilePath: this.cacheFilePath,
         },
@@ -432,21 +412,11 @@ export class AuthManager {
     return !!(this.passport && this.password);
   }
 
-  private canUseOpenAuth(): boolean {
-    return !!(this.clientID && this.clientSecret);
-  }
-
   /**
    * 检查认证配置是否有效
    */
   isConfigValid(): boolean {
-    return !!(
-      this.config.token ||
-      (this.passport && this.password) ||
-      (this.clientID &&
-        this.clientSecret &&
-        this.baseURL.includes("open-api.123pan.com"))
-    );
+    return !!(this.config.token || (this.passport && this.password));
   }
 
   /**

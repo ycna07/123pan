@@ -10,9 +10,6 @@ export interface SdkConfig {
   passport?: string;
   /** 普通用户 API：账号密码，与 passport 一起使用 */
   password?: string;
-  /** 兼容 Open API 的应用凭证 */
-  clientID?: string;
-  clientSecret?: string;
   baseURL?: string;
   loginBaseURL?: string;
   /** 普通用户 API 请求头，一般保持默认随机值即可 */
@@ -42,18 +39,6 @@ export interface SdkConfig {
     enabled?: boolean;
     cacheDir?: string;
     fileName?: string;
-    // Redis缓存配置
-    redis?: {
-      enabled?: boolean;
-      host?: string;
-      port?: number;
-      password?: string;
-      db?: number;
-      keyPrefix?: string;
-      url?: string;
-      // 或者直接使用现有的Redis客户端实例
-      client?: any;
-    };
   };
 }
 
@@ -72,6 +57,22 @@ export interface TokenInfo {
   expiresAt: number;
   tokenType: string;
 }
+
+// 扫码登录相关
+/** 扫码状态：0 等待扫码；1 已扫码；2 已取消；3 已登录（处理中）；4 已失效 */
+export type QrCodeLoginStatus = 0 | 1 | 2 | 3 | 4;
+
+/** 二维码登录会话，qrUrl 为二维码内容，可直接渲染成二维码图片 */
+export interface QrLoginSession {
+  uniID: string;
+  qrUrl: string;
+}
+
+/** 轮询二维码登录结果 */
+export type QrLoginPollResult =
+  | { status: "waiting" | "scanned" | "logging" }
+  | { status: "cancelled" | "expired"; message: string }
+  | { status: "success"; token: string };
 
 // API响应基础结构
 export interface ApiResponse<T = any> {

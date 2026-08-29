@@ -416,8 +416,6 @@ import Pan123SDK from '@sharef/123pan-sdk';
 
 async function directLinkWorkflow() {
   const sdk = new Pan123SDK({
-    clientID: process.env.CLIENT_ID!,
-    clientSecret: process.env.CLIENT_SECRET!,
   });
 
   const folderID = 4404009;

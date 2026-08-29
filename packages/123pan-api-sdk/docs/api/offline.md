@@ -265,8 +265,6 @@ import Pan123SDK from '@sharef/123pan-sdk';
 
 async function manageOfflineTasks() {
   const sdk = new Pan123SDK({
-    clientID: process.env.CLIENT_ID!,
-    clientSecret: process.env.CLIENT_SECRET!,
   });
 
   // 1. 创建离线任务

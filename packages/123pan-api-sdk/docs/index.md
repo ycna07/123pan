@@ -39,8 +39,6 @@ import Pan123SDK from '@sharef/123pan-sdk';
 
 // 初始化 SDK
 const sdk = new Pan123SDK({
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
 });
 
 // 使用 API

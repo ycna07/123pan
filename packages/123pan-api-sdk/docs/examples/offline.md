@@ -10,8 +10,6 @@
 import Pan123SDK from '@sharef/123pan-sdk';
 
 const sdk = new Pan123SDK({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
 });
 
 async function createOfflineTask() {
@@ -545,8 +543,6 @@ class OfflineDownloadManager {
 // 使用
 async function main() {
   const sdk = new Pan123SDK({
-    clientID: process.env.CLIENT_ID!,
-    clientSecret: process.env.CLIENT_SECRET!,
   });
 
   const manager = new OfflineDownloadManager(sdk);

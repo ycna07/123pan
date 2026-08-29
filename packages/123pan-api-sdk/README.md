@@ -185,8 +185,6 @@ const sdk = new Pan123SDK({
 });
 ```
 
-如果显式设置 `baseURL` 为 `https://open-api.123pan.com` 并提供 `clientID` / `clientSecret`，SDK 仍保留旧的 Open API 登录兼容路径；默认业务端点已切换为普通用户 API。
-
 ## 错误处理
 
 ```typescript

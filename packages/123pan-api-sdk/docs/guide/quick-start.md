@@ -40,8 +40,6 @@ pnpm add @sharef/123pan-sdk
 import Pan123SDK from '@sharef/123pan-sdk';
 
 const sdk = new Pan123SDK({
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
 });
 ```
 
@@ -189,8 +187,6 @@ import Pan123SDK from '@sharef/123pan-sdk';
 import * as fs from 'fs';
 
 const sdk = new Pan123SDK({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
 });
 
 async function main() {

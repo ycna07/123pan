@@ -17,8 +17,6 @@
 import Pan123SDK from '@sharef/123pan-sdk';
 
 const sdk = new Pan123SDK({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
   debug: true,  // 开发环境建议启用
 });
 ```
@@ -74,8 +72,6 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 const sdk = new Pan123SDK({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
   debug: process.env.DEBUG === 'true',
 });
 ```

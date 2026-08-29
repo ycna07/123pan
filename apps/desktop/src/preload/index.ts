@@ -1,19 +1,25 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { AuthStatus } from '@123pan/shared-types'
+import type { AuthStatus, QrLoginState } from '@123pan/shared-types'
 
 // Custom APIs for renderer
 const api = {
   login: (credentials: { passport: string; password: string }): Promise<unknown> =>
     ipcRenderer.invoke('auth:login', credentials),
   loginWithCookie: (raw: string): Promise<unknown> => ipcRenderer.invoke('auth:login-cookie', raw),
-  openQrLogin: (): Promise<void> => ipcRenderer.invoke('auth:open-qr'),
+  qrStart: (): Promise<{ qrUrl: string }> => ipcRenderer.invoke('auth:qr-start'),
+  qrStop: (): Promise<void> => ipcRenderer.invoke('auth:qr-stop'),
   getAuthStatus: (): Promise<unknown> => ipcRenderer.invoke('auth:status'),
   logout: (): Promise<void> => ipcRenderer.invoke('auth:logout'),
   onLoginSuccess: (callback: (status: AuthStatus) => void): (() => void) => {
     const listener = (_event: unknown, status: AuthStatus): void => callback(status)
     ipcRenderer.on('auth:login-success', listener)
     return () => ipcRenderer.removeListener('auth:login-success', listener)
+  },
+  onQrStatus: (callback: (state: QrLoginState) => void): (() => void) => {
+    const listener = (_event: unknown, state: QrLoginState): void => callback(state)
+    ipcRenderer.on('auth:qr-status', listener)
+    return () => ipcRenderer.removeListener('auth:qr-status', listener)
   }
 }
 

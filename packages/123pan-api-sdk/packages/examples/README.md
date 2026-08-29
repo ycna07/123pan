@@ -60,8 +60,8 @@ npx tsx examples/file-test.ts       # 运行文件模块测试
 
 ```typescript
 const config = {
-    clientID: '你的客户端ID',
-    clientSecret: '你的客户端密钥',
+    passport: '你的账号（手机号或邮箱）',
+    password: '你的密码',
     debug: true,                     // 启用调试模式
     debugToken: '你的调试Token'       // 使用调试Token避免频繁请求
 };
@@ -69,16 +69,15 @@ const config = {
 
 ### 获取调试Token
 
-1. 登录 [123pan开放平台](https://open.123pan.com)
-2. 创建应用获取 `clientID` 和 `clientSecret`
-3. 使用API获取访问令牌作为 `debugToken`
+1. 登录 [123pan官网](https://www.123pan.com) 并复制浏览器中的登录 token
+2. 将该 token 填入 `debugToken`
 
 ### 使用真实API
 
 如果要测试真实的API调用，请：
 
 1. 移除 `debugToken` 配置
-2. 确保 `clientID` 和 `clientSecret` 正确
+2. 确保 `passport` 和 `password` 正确
 3. 注意API调用频率限制
 
 ## 示例说明

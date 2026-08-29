@@ -1,29 +1,25 @@
 /**
  * 多级缓存管理器
- * 优先级: Redis -> 文件 -> 内存
+ * 优先级: 文件 -> 内存
  */
 
 import { TokenCacheAdapter, TokenInfo } from "./types";
-import { RedisCacheAdapter } from "./redis-adapter";
 import * as fs from "fs";
 import * as path from "path";
 import { Logger } from "../logger";
 
 export interface CacheConfig {
-  redisAdapter: TokenCacheAdapter | undefined;
   cacheEnabled?: boolean;
   cacheFilePath?: string;
 }
 
 export class MultiLevelCacheManager implements TokenCacheAdapter {
-  private redisAdapter: TokenCacheAdapter | undefined;
   private cacheEnabled: boolean;
   private cacheFilePath: string;
   private memoryCache: TokenInfo | null = null;
   private logger: Logger;
 
   constructor(config: CacheConfig, logger?: Logger) {
-    this.redisAdapter = config.redisAdapter;
     this.cacheEnabled = config.cacheEnabled !== false;
     this.cacheFilePath = config.cacheFilePath || "";
     this.logger = logger || (console as any);
@@ -31,41 +27,16 @@ export class MultiLevelCacheManager implements TokenCacheAdapter {
 
   /**
    * 从多级缓存中获取token信息
-   * 优先级: Redis -> 文件 -> 内存
+   * 优先级: 文件 -> 内存
    */
   async getTokenInfo(): Promise<TokenInfo | null> {
-    // 1. 首先尝试从Redis获取
-    if (this.redisAdapter) {
-      try {
-        const isAvailable = await this.redisAdapter.isAvailable();
-        if (isAvailable) {
-          this.logger?.debug("Attempting to get token from Redis cache");
-          const redisToken = await this.redisAdapter.getTokenInfo();
-          if (redisToken) {
-            this.logger?.info("Token retrieved from Redis cache");
-            this.memoryCache = redisToken; // 同步到内存缓存
-            return redisToken;
-          }
-        }
-      } catch (error) {
-        this.logger?.warn(
-          "Failed to get token from Redis cache, falling back to file cache",
-          error as Error,
-        );
-      }
-    }
-
-    // 2. 尝试从文件缓存获取
+    // 1. 尝试从文件缓存获取
     if (this.cacheEnabled && this.cacheFilePath) {
       try {
         const fileToken = await this.getTokenFromFile();
         if (fileToken) {
           this.logger?.info("Token retrieved from file cache");
           this.memoryCache = fileToken; // 同步到内存缓存
-          // 如果Redis可用，同步到Redis
-          if (this.redisAdapter) {
-            await this.syncToRedis(fileToken);
-          }
           return fileToken;
         }
       } catch (error) {
@@ -76,7 +47,7 @@ export class MultiLevelCacheManager implements TokenCacheAdapter {
       }
     }
 
-    // 3. 最后从内存缓存获取
+    // 2. 最后从内存缓存获取
     if (this.memoryCache) {
       // 检查是否过期
       if (Date.now() >= this.memoryCache.expiresAt) {
@@ -108,21 +79,6 @@ export class MultiLevelCacheManager implements TokenCacheAdapter {
         this.logger?.warn("Failed to save token to file cache", error as Error);
       }
     }
-
-    // 3. 保存到Redis缓存
-    if (this.redisAdapter) {
-      try {
-        const isAvailable = await this.redisAdapter.isAvailable();
-        if (isAvailable) {
-          await this.redisAdapter.setTokenInfo(tokenInfo);
-        }
-      } catch (error) {
-        this.logger?.warn(
-          "Failed to save token to Redis cache",
-          error as Error,
-        );
-      }
-    }
   }
 
   /**
@@ -142,31 +98,16 @@ export class MultiLevelCacheManager implements TokenCacheAdapter {
         this.logger?.warn("Failed to delete token file cache", error as Error);
       }
     }
-
-    // 3. 清除Redis缓存
-    if (this.redisAdapter) {
-      try {
-        await this.redisAdapter.clearTokenInfo();
-      } catch (error) {
-        this.logger?.warn(
-          "Failed to clear token from Redis cache",
-          error as Error,
-        );
-      }
-    }
   }
 
   async isAvailable(): Promise<boolean> {
     // 至少有一个缓存可用就返回true
-    const redisAvailable = this.redisAdapter
-      ? await this.redisAdapter.isAvailable()
-      : false;
     const fileAvailable =
       this.cacheEnabled &&
       this.cacheFilePath &&
       fs.existsSync(this.cacheFilePath);
     const memoryAvailable = this.memoryCache !== null;
-    return redisAvailable || fileAvailable || memoryAvailable;
+    return fileAvailable || memoryAvailable;
   }
 
   private async getTokenFromFile(): Promise<TokenInfo | null> {
@@ -236,20 +177,6 @@ export class MultiLevelCacheManager implements TokenCacheAdapter {
       this.logger?.debug("Token file cache deleted");
     } catch (error) {
       this.logger?.warn("Failed to delete token file cache", error as Error);
-    }
-  }
-
-  private async syncToRedis(tokenInfo: TokenInfo): Promise<void> {
-    if (this.redisAdapter) {
-      try {
-        const isAvailable = await this.redisAdapter.isAvailable();
-        if (isAvailable) {
-          await this.redisAdapter.setTokenInfo(tokenInfo);
-          this.logger?.debug("Token synced to Redis cache");
-        }
-      } catch (error) {
-        this.logger?.warn("Failed to sync token to Redis", error as Error);
-      }
     }
   }
 }

@@ -24,8 +24,6 @@
 import Pan123SDK from '@sharef/123pan-sdk';
 
 const sdk = new Pan123SDK({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
 });
 
 async function uploadImage() {
@@ -614,8 +612,6 @@ class ImageHostingTool {
 // 使用
 async function main() {
   const sdk = new Pan123SDK({
-    clientID: process.env.CLIENT_ID!,
-    clientSecret: process.env.CLIENT_SECRET!,
   });
 
   const tool = new ImageHostingTool(sdk);

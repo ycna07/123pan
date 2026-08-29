@@ -8,19 +8,19 @@
 // biome-ignore lint: disable
 export {}
 declare global {
-  const defineLocale: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/defineLocale').defineLocale
-  const defineShortcuts: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/defineShortcuts').defineShortcuts
-  const extendLocale: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/defineLocale').extendLocale
-  const extractShortcuts: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/defineShortcuts').extractShortcuts
-  const useAppConfig: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/vue/composables/useAppConfig.js').useAppConfig
-  const useContentSearch: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/useContentSearch').useContentSearch
-  const useFileUpload: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/useFileUpload').useFileUpload
-  const useFormField: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/useFormField').useFormField
-  const useKbd: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/useKbd').useKbd
-  const useOverlay: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/useOverlay').useOverlay
-  const useResizable: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/useResizable').useResizable
-  const useScrollShadow: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/useScrollShadow').useScrollShadow
-  const useScrollspy: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/useScrollspy').useScrollspy
-  const useToast: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/useToast').useToast
-  const useTour: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_0286c7ae9f183c1bc0782e82f34987a2/node_modules/@nuxt/ui/dist/runtime/composables/useTour').useTour
+  const defineLocale: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/defineLocale').defineLocale
+  const defineShortcuts: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/defineShortcuts').defineShortcuts
+  const extendLocale: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/defineLocale').extendLocale
+  const extractShortcuts: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/defineShortcuts').extractShortcuts
+  const useAppConfig: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/vue/composables/useAppConfig.js').useAppConfig
+  const useContentSearch: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/useContentSearch').useContentSearch
+  const useFileUpload: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/useFileUpload').useFileUpload
+  const useFormField: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/useFormField').useFormField
+  const useKbd: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/useKbd').useKbd
+  const useOverlay: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/useOverlay').useOverlay
+  const useResizable: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/useResizable').useResizable
+  const useScrollShadow: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/useScrollShadow').useScrollShadow
+  const useScrollspy: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/useScrollspy').useScrollspy
+  const useToast: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/useToast').useToast
+  const useTour: typeof import('../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_208454384c47f9393fe2c34d3efbf1d8/node_modules/@nuxt/ui/dist/runtime/composables/useTour').useTour
 }

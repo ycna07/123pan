@@ -62,8 +62,6 @@ import Pan123SDK from '@sharef/123pan-sdk';
 
 async function getUserProfile() {
   const sdk = new Pan123SDK({
-    clientID: process.env.CLIENT_ID!,
-    clientSecret: process.env.CLIENT_SECRET!,
   });
 
   try {

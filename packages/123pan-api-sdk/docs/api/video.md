@@ -740,8 +740,6 @@ import Pan123SDK from '@sharef/123pan-sdk';
 
 async function videoTranscodeWorkflow() {
   const sdk = new Pan123SDK({
-    clientID: process.env.CLIENT_ID!,
-    clientSecret: process.env.CLIENT_SECRET!,
   });
 
   const cloudDiskFileId = 12345;  // 云盘中的视频文件ID
@@ -852,8 +850,6 @@ videoTranscodeWorkflow();
 ```typescript
 async function completeVideoWorkflow() {
   const sdk = new Pan123SDK({
-    clientID: process.env.CLIENT_ID!,
-    clientSecret: process.env.CLIENT_SECRET!,
   });
 
   const fileId = 2875008;
@@ -993,8 +989,6 @@ completeVideoWorkflow();
 ```typescript
 async function batchTranscodeManagement() {
   const sdk = new Pan123SDK({
-    clientID: process.env.CLIENT_ID!,
-    clientSecret: process.env.CLIENT_SECRET!,
   });
 
   try {
@@ -1097,8 +1091,6 @@ batchTranscodeManagement();
 ```typescript
 async function cleanupTranscodeSpace() {
   const sdk = new Pan123SDK({
-    clientID: process.env.CLIENT_ID!,
-    clientSecret: process.env.CLIENT_SECRET!,
   });
 
   try {

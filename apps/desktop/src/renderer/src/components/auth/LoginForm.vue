@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { FormError } from '@nuxt/ui'
-import type { AuthStatus } from '@123pan/shared-types'
+import type { AuthStatus, QrLoginState } from '@123pan/shared-types'
+import QRCode from 'qrcode'
 
 const emit = defineEmits<{ authenticated: [status: AuthStatus] }>()
 
 const tabItems = [
-  { label: '密码登录', slot: 'password' as const },
-  { label: 'Cookie 登录', slot: 'cookie' as const },
-  { label: '扫码登录', slot: 'qr' as const }
+  { label: '密码登录', slot: 'password' as const, value: 'password' as const },
+  { label: 'Cookie 登录', slot: 'cookie' as const, value: 'cookie' as const },
+  { label: '扫码登录', slot: 'qr' as const, value: 'qr' as const }
 ]
+const activeTab = ref<'password' | 'cookie' | 'qr'>('password')
 
 const state = reactive({
   passport: '',
@@ -18,6 +20,18 @@ const state = reactive({
 const cookieText = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
+
+const qrCanvas = ref<HTMLCanvasElement | null>(null)
+const qrUrl = ref('')
+const qrStatus = ref<QrLoginState | null>(null)
+const qrLoading = ref(false)
+const qrStatusText: Record<string, string> = {
+  waiting: '等待扫码…',
+  scanned: '已扫码，请在手机上确认',
+  logging: '已确认，正在登录…',
+  cancelled: '登录已取消',
+  expired: '二维码已过期'
+}
 
 function validate(formState: typeof state): FormError[] {
   const errors: FormError[] = []
@@ -38,9 +52,47 @@ function loginCookie(): Promise<AuthStatus> {
   return window.api.loginWithCookie(cookieText.value)
 }
 
-function openQrLogin(): Promise<void> {
-  return window.api.openQrLogin()
+async function startQrLogin(): Promise<void> {
+  qrLoading.value = true
+  errorMessage.value = ''
+  try {
+    const { qrUrl: url } = await window.api.qrStart()
+    qrUrl.value = url
+    qrStatus.value = { status: 'waiting' }
+    await nextTick()
+    if (qrCanvas.value) {
+      await QRCode.toCanvas(qrCanvas.value, url, { width: 220, margin: 1 })
+    }
+  } catch (error) {
+    stopQrLogin()
+    errorMessage.value = error instanceof Error ? error.message : '生成二维码失败，请稍后重试'
+  } finally {
+    qrLoading.value = false
+  }
 }
+
+function stopQrLogin(): void {
+  if (qrUrl.value) window.api.qrStop()
+  qrUrl.value = ''
+  qrStatus.value = null
+}
+
+watch(activeTab, (tab) => {
+  if (tab !== 'qr') stopQrLogin()
+})
+
+let removeQrStatusListener: (() => void) | null = null
+
+onMounted(() => {
+  removeQrStatusListener = window.api.onQrStatus((qrState) => {
+    qrStatus.value = qrState
+  })
+})
+
+onBeforeUnmount(() => {
+  removeQrStatusListener?.()
+  stopQrLogin()
+})
 
 async function submitLogin(action: () => Promise<AuthStatus>): Promise<void> {
   loading.value = true
@@ -73,7 +125,7 @@ async function submitLogin(action: () => Promise<AuthStatus>): Promise<void> {
         class="mb-4"
       />
 
-      <UTabs :items="tabItems" size="sm">
+      <UTabs v-model="activeTab" :items="tabItems" size="sm">
         <template #password>
           <UForm
             :validate="validate"
@@ -130,18 +182,21 @@ async function submitLogin(action: () => Promise<AuthStatus>): Promise<void> {
 
         <template #qr>
           <div class="flex flex-col items-center gap-3 pt-4 pb-2 text-center">
-            <UIcon name="i-lucide-scan-line" class="size-12 text-primary" />
+            <div v-if="qrUrl" class="rounded-lg bg-white p-2">
+              <canvas ref="qrCanvas" class="block size-[220px]" />
+            </div>
+            <UIcon v-else name="i-lucide-scan-line" class="size-12 text-primary" />
             <p class="text-sm text-muted">
-              将打开 123pan 官方登录窗口，使用 123云盘 App 扫码即可，登录成功后自动进入应用。
+              {{ qrStatusText[qrStatus?.status ?? ''] ?? '使用 123云盘 App 扫码登录' }}
             </p>
             <UButton
               size="lg"
               block
-              icon="i-lucide-external-link"
-              :disabled="loading"
-              @click="openQrLogin"
+              :icon="qrUrl ? 'i-lucide-refresh-cw' : 'i-lucide-scan-line'"
+              :loading="qrLoading"
+              @click="startQrLogin"
             >
-              打开官方登录窗口
+              {{ qrUrl ? '重新生成二维码' : '生成登录二维码' }}
             </UButton>
           </div>
         </template>

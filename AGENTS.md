@@ -41,10 +41,10 @@ Workspace members: `apps/*`, `packages/*`, `packages/123pan-api-sdk/packages/*` 
 
 ### SDK package (`packages/123pan-api-sdk`)
 
-- Keeps its own toolchain (rollup, jest, eslint 8); root eslint/prettier ignore this subtree — don't run root formatters over it.
+- Keeps its own toolchain (rolldown build, vitest, eslint 8); root eslint/prettier ignore this subtree — don't run root formatters over it. Tests: `pnpm --filter @sharef/123pan-sdk test`（vitest）；真实接口冒烟用 `P123_LIVE_TEST=1` 门控。
 - Inner `@123pan/*` modules are declared as `workspace:*` deps of the SDK root.
 - `dist/` is gitignored but required at runtime: electron-vite externalizes main-process deps by default, so the packaged/dev app does a real `require('@sharef/123pan-sdk')`. Run `pnpm build:sdk` after a fresh clone or clean checkout.
-- SDK package has `"type": "module"`; CJS rollup outputs must keep the `.cjs` extension and stay in sync with the `exports` map, otherwise `require()` silently returns an empty namespace (Node ≥ 22.12 require(esm)).
+- SDK package has `"type": "module"`; build via `rolldown -c`（`rolldown.config.ts`），d.ts 由 `scripts/normalize-dts.mjs` 归位；CJS outputs must keep the `.cjs` extension and stay in sync with the `exports` map, otherwise `require()` silently returns an empty namespace (Node ≥ 22.12 require(esm)).
 
 ## Gotchas
 

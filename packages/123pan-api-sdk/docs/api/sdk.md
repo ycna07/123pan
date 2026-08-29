@@ -8,12 +8,9 @@ SDK 主类提供了初始化配置和全局管理功能。
 import Pan123SDK from '@sharef/123pan-sdk';
 
 const sdk = new Pan123SDK({
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
   // 可选配置
   baseURL: 'https://open-api.123pan.com',
   debug: false,
-  debugToken: 'your-debug-token', // 用于开发环境跳过 clientID/clientSecret 验证
 });
 ```
 
@@ -23,8 +20,6 @@ const sdk = new Pan123SDK({
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `clientID` | `string` | 是 | 123云盘开放平台客户端ID |
-| `clientSecret` | `string` | 是 | 123云盘开放平台客户端密钥 |
 | `baseURL` | `string` | 否 | API基础URL，默认为 `https://open-api.123pan.com` |
 | `debug` | `boolean` | 否 | 是否启用调试模式，默认为 `false` |
 | `debugToken` | `string` | 否 | 调试用 JWT token，用于开发环境跳过认证 |
@@ -162,8 +157,6 @@ import Pan123SDK from '@sharef/123pan-sdk';
 async function main() {
   // 初始化 SDK
   const sdk = new Pan123SDK({
-    clientID: process.env.CLIENT_ID!,
-    clientSecret: process.env.CLIENT_SECRET!,
     debug: true,
   });
 

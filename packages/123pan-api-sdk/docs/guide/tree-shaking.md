@@ -20,8 +20,6 @@ SDK 支持两种引入方式：**全量引入** 和 **按需引入**。您可以
 import Pan123SDK from '@sharef/123pan-sdk';
 
 const sdk = new Pan123SDK({
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
 });
 
 // 可以使用所有模块
@@ -69,8 +67,6 @@ import { UserModule } from '123pan-api-sdk/user';
 
 // 3. 手动初始化 HttpClient
 const httpClient = new HttpClient({
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
 });
 
 // 4. 初始化需要的模块
@@ -129,8 +125,6 @@ import { HttpClient } from '123pan-api-sdk/core';
 import { FileModule } from '123pan-api-sdk/file';
 
 const httpClient = new HttpClient({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
 });
 
 const file = new FileModule(httpClient);
@@ -169,8 +163,6 @@ import { HttpClient } from '123pan-api-sdk/core';
 import { ImageModule } from '123pan-api-sdk/image';
 
 const httpClient = new HttpClient({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
 });
 
 const image = new ImageModule(httpClient);
@@ -211,8 +203,6 @@ import { UserModule } from '123pan-api-sdk/user';
 import { OfflineModule } from '123pan-api-sdk/offline';
 
 const httpClient = new HttpClient({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
 });
 
 // 初始化需要的模块
@@ -259,8 +249,6 @@ class MyCustomSDK {
 
 // 使用
 const sdk = new MyCustomSDK({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
 });
 
 await sdk.file.getFileList({ parentFileId: 0, limit: 100 });
@@ -279,8 +267,6 @@ import { FileModule } from '123pan-api-sdk/file';
 import type { ApiResponse, FileListItem } from '123pan-api-sdk/core';
 
 const httpClient = new HttpClient({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
 });
 
 const file = new FileModule(httpClient);

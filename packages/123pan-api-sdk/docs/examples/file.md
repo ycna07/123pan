@@ -16,8 +16,6 @@
 import Pan123SDK from '@sharef/123pan-sdk';
 
 const sdk = new Pan123SDK({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
 });
 
 // 获取根目录文件
@@ -505,8 +503,6 @@ class FileBackupTool {
 
 // 使用
 const sdk = new Pan123SDK({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
 });
 
 const backupTool = new FileBackupTool(sdk);

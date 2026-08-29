@@ -354,8 +354,6 @@ import * as fs from 'fs';
 
 async function imageWorkflow() {
   const sdk = new Pan123SDK({
-    clientID: process.env.CLIENT_ID!,
-    clientSecret: process.env.CLIENT_SECRET!,
   });
 
   // 1. 上传图片

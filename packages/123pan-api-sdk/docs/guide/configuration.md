@@ -10,8 +10,6 @@
 import Pan123SDK from '@sharef/123pan-sdk';
 
 const sdk = new Pan123SDK({
-  clientID: 'your-client-id',      // 必需
-  clientSecret: 'your-client-secret', // 必需
 });
 ```
 
@@ -22,8 +20,6 @@ SDK 支持以下所有配置选项：
 ```typescript
 interface SdkConfig {
   // 必需参数
-  clientID: string;        // 应用 Client ID
-  clientSecret: string;    // 应用 Client Secret
   
   // 可选参数
   baseURL?: string;        // API 基础 URL，默认: 'https://open-api.123pan.com'
@@ -49,8 +45,6 @@ interface SdkConfig {
 
 ```typescript
 const sdk = new Pan123SDK({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
   timeout: 60000,      // 增加超时时间到 60 秒
   maxRetries: 5,       // 增加重试次数
   debug: false,        // 关闭调试日志
@@ -61,8 +55,6 @@ const sdk = new Pan123SDK({
 
 ```typescript
 const sdk = new Pan123SDK({
-  clientID: process.env.DEV_CLIENT_ID!,
-  clientSecret: process.env.DEV_CLIENT_SECRET!,
   debug: true,         // 开启调试日志
   debugToken: process.env.DEBUG_TOKEN, // 使用调试 token
   rateLimit: {
@@ -76,8 +68,6 @@ const sdk = new Pan123SDK({
 
 ```typescript
 const sdk = new Pan123SDK({
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
   baseURL: 'https://custom-api.example.com', // 自定义 API 地址
 });
 ```
@@ -102,8 +92,6 @@ import 'dotenv/config';
 import Pan123SDK from '@sharef/123pan-sdk';
 
 const sdk = new Pan123SDK({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
   debugToken: process.env.DEBUG_TOKEN,
 });
 ```
@@ -120,8 +108,6 @@ SDK 内置令牌桶算法来防止 API 限流：
 
 ```typescript
 const sdk = new Pan123SDK({
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
   rateLimit: {
     capacity: 10,     // 令牌桶容量：最多存储 10 个令牌
     refillRate: 2,    // 恢复速率：每秒恢复 2 个令牌
@@ -152,8 +138,6 @@ SDK 会自动重试失败的请求：
 
 ```typescript
 const sdk = new Pan123SDK({
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
   maxRetries: 5,      // 最多重试 5 次
   retryDelay: 2000,   // 每次重试等待 2 秒
 });
@@ -179,8 +163,6 @@ SDK 会在以下情况自动重试：
 
 ```typescript
 const sdk = new Pan123SDK({
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
   debug: true,  // 开启调试模式
 });
 
@@ -195,8 +177,6 @@ const sdk = new Pan123SDK({
 
 ```typescript
 const sdk = new Pan123SDK({
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
   debugToken: 'your-jwt-token',  // 直接使用 JWT token
 });
 ```
@@ -211,8 +191,6 @@ const sdk = new Pan123SDK({
 
 ```typescript
 const sdk = new Pan123SDK({
-  clientID: 'your-client-id',
-  clientSecret: 'your-client-secret',
 });
 
 // 动态更新配置
@@ -253,14 +231,10 @@ console.log('认证信息已清除');
 ```typescript
 // ✅ 推荐
 const sdk = new Pan123SDK({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
 });
 
 // ❌ 不推荐
 const sdk = new Pan123SDK({
-  clientID: 'hardcoded-client-id',
-  clientSecret: 'hardcoded-secret',
 });
 ```
 
@@ -269,8 +243,6 @@ const sdk = new Pan123SDK({
 ```typescript
 // 文件上传等耗时操作
 const sdk = new Pan123SDK({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
   timeout: 120000,  // 2 分钟
 });
 ```
@@ -279,8 +251,6 @@ const sdk = new Pan123SDK({
 
 ```typescript
 const sdk = new Pan123SDK({
-  clientID: process.env.CLIENT_ID!,
-  clientSecret: process.env.CLIENT_SECRET!,
   debug: process.env.NODE_ENV !== 'production',
 });
 ```

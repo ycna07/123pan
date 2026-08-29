@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain, safeStorage, session } from 'electron'
+import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
 import { join } from 'path'
 import { readFile, rm, writeFile } from 'fs/promises'
 import { Pan123SDK } from '@sharef/123pan-sdk'
-import type { AuthStatus, LoginCredentials } from '@123pan/shared-types'
+import type { AuthStatus, LoginCredentials, QrLoginState } from '@123pan/shared-types'
 
 interface StoredToken {
   account: string
@@ -24,11 +24,13 @@ let account: string | null = null
 let nickname: string | null = null
 let avatar: string | null = null
 
-let qrWindow: BrowserWindow | null = null
-let qrPollTimer: NodeJS.Timeout | null = null
-
-const QR_LOGIN_URL = 'https://www.123pan.com/login/'
 const JWT_PATTERN = /eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g
+
+const QR_POLL_INTERVAL_MS = 2000
+
+let qrSessionSdk: Pan123SDK | null = null
+let qrSessionUniId: string | null = null
+let qrPollTimer: NodeJS.Timeout | null = null
 
 function tokenFilePath(): string {
   return join(app.getPath('userData'), 'auth-token.json')
@@ -253,64 +255,66 @@ function stopQrPolling(): void {
     clearInterval(qrPollTimer)
     qrPollTimer = null
   }
+  qrSessionSdk = null
+  qrSessionUniId = null
 }
 
-async function harvestQrCandidates(): Promise<void> {
-  const win = qrWindow
-  if (!win || win.isDestroyed()) return
+function sendQrStatus(state: QrLoginState): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('auth:qr-status', state)
+  }
+}
+
+async function pollQrLogin(): Promise<void> {
+  const instance = qrSessionSdk
+  const uniId = qrSessionUniId
+  if (!instance || !uniId) return
+  let result: Awaited<ReturnType<Pan123SDK['pollQrLogin']>>
   try {
-    const cookies = await session.defaultSession.cookies.get({})
-    const cookieText = cookies
-      .filter((cookie) => cookie.domain?.includes('123pan'))
-      .map((cookie) => `${cookie.name}=${cookie.value}`)
-      .join('; ')
-    const storageText = await win.webContents
-      .executeJavaScript('JSON.stringify(window.localStorage)')
-      .catch(() => '')
-    const candidates = extractTokenCandidates(`${cookieText}\n${storageText}`)
-    for (const token of candidates.slice(0, 3)) {
-      const profile = await validateToken(token)
-      if (!profile) continue
-      const instance = createSdkWithToken(token)
-      await persistToken(profile, token)
+    result = await instance.pollQrLogin(uniId)
+  } catch {
+    return /* transient error; retry on next tick */
+  }
+  switch (result.status) {
+    case 'waiting':
+    case 'scanned':
+    case 'logging':
+      sendQrStatus({ status: result.status })
+      break
+    case 'success': {
+      stopQrPolling()
+      const profile = await fetchProfile(instance, '扫码登录')
+      await persistToken(profile, result.token)
       applyLogin(profile, instance)
       broadcastLoginSuccess()
-      if (qrWindow && !qrWindow.isDestroyed()) qrWindow.close()
-      return
+      break
     }
-  } catch {
-    /* window may be navigating; retry on next tick */
+    case 'cancelled':
+    case 'expired': {
+      stopQrPolling()
+      sendQrStatus({ status: result.status, ...(result.message && { message: result.message }) })
+      break
+    }
   }
 }
 
-function openQrLoginWindow(): void {
-  if (qrWindow && !qrWindow.isDestroyed()) {
-    qrWindow.focus()
-    return
-  }
-  qrWindow = new BrowserWindow({
-    width: 440,
-    height: 680,
-    title: '123云盘 登录',
-    autoHideMenuBar: true,
-    webPreferences: {
-      sandbox: true,
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  })
-  qrWindow.loadURL(QR_LOGIN_URL)
-  qrWindow.on('closed', () => {
-    qrWindow = null
-    stopQrPolling()
-  })
+async function startQrLogin(): Promise<{ qrUrl: string }> {
   stopQrPolling()
+  const instance = new Pan123SDK({
+    cacheConfig: { enabled: false },
+    loggerConfig: { enableConsole: false }
+  })
+  const session = await instance.createQrLogin()
+  qrSessionSdk = instance
+  qrSessionUniId = session.uniID
   qrPollTimer = setInterval(() => {
-    void harvestQrCandidates()
-  }, 2000)
+    void pollQrLogin()
+  }, QR_POLL_INTERVAL_MS)
+  return { qrUrl: session.qrUrl }
 }
 
 async function logout(): Promise<void> {
+  stopQrPolling()
   try {
     sdk?.clearAuth()
   } finally {
@@ -327,7 +331,8 @@ export function registerAuthHandlers(): void {
     loginWithPassword(credentials)
   )
   ipcMain.handle('auth:login-cookie', (_event, raw: string) => loginWithCookie(raw))
-  ipcMain.handle('auth:open-qr', () => openQrLoginWindow())
+  ipcMain.handle('auth:qr-start', () => startQrLogin())
+  ipcMain.handle('auth:qr-stop', () => stopQrPolling())
   ipcMain.handle('auth:status', () => getAuthStatus())
   ipcMain.handle('auth:logout', () => logout())
 }
