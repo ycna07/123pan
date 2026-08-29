@@ -20,19 +20,9 @@
 
 选择你喜欢的包管理器安装 SDK：
 
-::: code-group
-```bash [npm]
-npm install @sharef/123pan-sdk
-```
-
-```bash [yarn]
-yarn add @sharef/123pan-sdk
-```
-
-```bash [pnpm]
+```bash
 pnpm add @sharef/123pan-sdk
 ```
-:::
 
 ## 初始化 SDK
 

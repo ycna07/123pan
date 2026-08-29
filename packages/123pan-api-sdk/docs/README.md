@@ -8,17 +8,13 @@
 
 ```bash
 cd docs
-npm install
-# 或
-yarn install
-# 或
 pnpm install
 ```
 
 ### 启动开发服务器
 
 ```bash
-npm run docs:dev
+pnpm run docs:dev
 ```
 
 访问 http://localhost:5173 查看文档。
@@ -26,23 +22,18 @@ npm run docs:dev
 ### 构建文档
 
 ```bash
-npm run docs:build
+pnpm run docs:build
 ```
 
 构建后的文件在 `docs/.vitepress/dist` 目录。
 
 ## 部署到 GitHub Pages
 
-### 方式1: 使用 GitHub Actions（推荐）
-
-在仓库的 `.github/workflows/deploy-docs.yml` 文件已配置自动部署。
-每次推送到 `main` 分支时会自动构建并部署文档。
-
-### 方式2: 手动部署
+### 手动部署
 
 ```bash
 # 构建文档
-npm run docs:build
+pnpm run docs:build
 
 # 进入构建目录
 cd docs/.vitepress/dist

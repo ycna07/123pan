@@ -18,19 +18,9 @@
 
 ### 安装
 
-::: code-group
-```bash [npm]
-npm install @sharef/123pan-sdk
-```
-
-```bash [yarn]
-yarn add @sharef/123pan-sdk
-```
-
-```bash [pnpm]
+```bash
 pnpm add @sharef/123pan-sdk
 ```
-:::
 
 ### 基础使用
 

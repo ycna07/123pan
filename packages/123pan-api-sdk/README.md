@@ -24,13 +24,6 @@ fork form https://github.com/Shijf/123pan-api-sdk
 ## 安装
 
 ```bash
-npm install @sharef/123pan-sdk
-```
-
-或使用 yarn/pnpm：
-
-```bash
-yarn add @sharef/123pan-sdk
 pnpm add @sharef/123pan-sdk
 ```
 

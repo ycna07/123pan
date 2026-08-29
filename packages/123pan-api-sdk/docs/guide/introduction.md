@@ -155,7 +155,7 @@ await sdk.video.transcodeVideo({
 
 - **Node.js** 版本要求：>= 14.0.0
 - **TypeScript** 版本：>= 4.5.0
-- **包管理器**：npm、yarn 或 pnpm
+- **包管理器**：pnpm
 - **环境**：仅支持 Node.js 环境（不支持浏览器）
 
 ## 许可证

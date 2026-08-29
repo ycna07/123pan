@@ -59,20 +59,17 @@
     }
   },
   "scripts": {
-    "build": "rolldown -c && node scripts/normalize-dts.mjs",
-    "dev": "rollup -c -w",
+    "build": "pnpm run clean && rolldown -c && node scripts/normalize-dts.mjs",
+    "dev": "rolldown -c -w",
     "clean": "rimraf dist",
-    "prebuild": "npm run clean",
     "type-check": "tsc --noEmit",
     "lint": "eslint packages --ext .ts,.tsx",
     "lint:fix": "eslint packages --ext .ts,.tsx --fix",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:live": "P123_LIVE_TEST=1 vitest run",
-    "dev-server": "node packages/demo/src/unified-server.mjs",
-    "examples": "yarn workspace @123pan/examples test",
-    "bootstrap": "npm install",
-    "prepublishOnly": "npm run build"
+    "examples": "pnpm --filter @123pan/examples test",
+    "prepublishOnly": "pnpm run build"
   },
   "keywords": [
     "123pan",
@@ -118,8 +115,7 @@
     "axios": "^1.6.2"
   },
   "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=8.0.0"
+    "node": ">=20.0.0"
   },
   "repository": {
     "type": "git",

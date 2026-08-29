@@ -20,13 +20,13 @@ docs/
 
 ```bash
 cd docs
-npm install
+pnpm install
 ```
 
 ### 3. 本地预览
 
 ```bash
-npm run docs:dev
+pnpm run docs:dev
 ```
 
 访问 http://localhost:5173 查看文档。
@@ -64,7 +64,7 @@ npm run docs:dev
 
    ```bash
    cd docs
-   npm run docs:build
+   pnpm run docs:build
    ```
 
 2. **部署到 gh-pages 分支**
@@ -159,7 +159,7 @@ GitHub Actions 会自动构建并部署。
 ### 手动部署
 
 1. 修改文档
-2. 重新构建：`cd docs && npm run docs:build`
+2. 重新构建：`cd docs && pnpm run docs:build`
 3. 按照"方式二"的步骤部署
 
 ## 常见问题
