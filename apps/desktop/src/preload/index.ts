@@ -13,6 +13,8 @@ const api = {
   logout: (): Promise<void> => ipcRenderer.invoke('auth:logout'),
   listFiles: (folderId: string | null): Promise<DriveItem[]> =>
     ipcRenderer.invoke('drive:list', folderId),
+  moveFiles: (fileIds: string[], targetFolderId: string | null): Promise<string[]> =>
+    ipcRenderer.invoke('drive:move', fileIds, targetFolderId),
   onLoginSuccess: (callback: (status: AuthStatus) => void): (() => void) => {
     const listener = (_event: unknown, status: AuthStatus): void => callback(status)
     ipcRenderer.on('auth:login-success', listener)

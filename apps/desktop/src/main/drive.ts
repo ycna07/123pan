@@ -93,12 +93,33 @@ async function fetchFolderItems(parentFileId: number): Promise<DriveItem[]> {
   return items
 }
 
+function toFolderId(folderId: string | null, label: string): number {
+  const id = folderId === null ? 0 : Number(folderId)
+  if (!Number.isInteger(id) || id < 0) {
+    throw new Error(`无效的${label}：${String(folderId)}`)
+  }
+  return id
+}
+
 export function registerDriveHandlers(): void {
   ipcMain.handle('drive:list', (_event, folderId: string | null) => {
-    const parentFileId = folderId === null ? 0 : Number(folderId)
-    if (!Number.isInteger(parentFileId) || parentFileId < 0) {
-      throw new Error(`无效的目录 ID：${String(folderId)}`)
+    return fetchFolderItems(toFolderId(folderId, '目录 ID'))
+  })
+
+  ipcMain.handle('drive:move', async (_event, fileIds: string[], targetFolderId: string | null) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    if (!Array.isArray(fileIds) || fileIds.length === 0) {
+      throw new Error('请选择要移动的文件')
     }
-    return fetchFolderItems(parentFileId)
+    const targetId = toFolderId(targetFolderId, '目标目录 ID')
+    const response = await sdk.file.moveFiles({
+      fileIDs: fileIds.map((id) => Number(id)),
+      toParentFileID: targetId
+    })
+    if (response.code !== 0) {
+      throw new Error(response.message || '移动文件失败')
+    }
+    return fileIds.map((id) => String(id))
   })
 }

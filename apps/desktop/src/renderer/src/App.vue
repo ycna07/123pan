@@ -92,17 +92,19 @@ function handleOpenFolder(folderId: string): void {
   void loadFolder(folderId)
 }
 
-function handleMove(id: string, targetId: string | null): void {
+async function handleMove(id: string, targetId: string | null): Promise<void> {
   const item = items.value.find((entry) => entry.id === id)
   if (!item || item.parentId === targetId) return
-  const targetName = targetId
-    ? (items.value.find((entry) => entry.id === targetId)?.name ?? '全部文件')
-    : '全部文件'
-  item.parentId = targetId
-  toast.add({
-    title: `已移动「${item.name}」至「${targetName}」（本地演示，未同步云端）`,
-    icon: 'i-lucide-folder-input'
-  })
+  try {
+    await window.api.moveFiles([id], targetId)
+    item.parentId = targetId
+    const targetName = targetId
+      ? (items.value.find((entry) => entry.id === targetId)?.name ?? '全部文件')
+      : '全部文件'
+    toast.add({ title: `已移动「${item.name}」至「${targetName}」`, icon: 'i-lucide-folder-input' })
+  } catch (error) {
+    showError(error, '移动文件失败')
+  }
 }
 
 function handleAuthenticated(status: AuthStatus): void {
