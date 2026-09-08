@@ -15,3 +15,16 @@ export interface DriveItem {
   updatedAt: string
   starred?: boolean
 }
+
+export interface StorageUsage {
+  used: number
+  permanent: number
+  temp: number
+}
+
+export interface DownloadProgress {
+  fileId: string
+  name: string
+  received: number
+  total: number
+}

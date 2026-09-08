@@ -432,15 +432,18 @@ export class FileModule {
     // 转换为数字数组
     const fileIdsNum = fileIds.map((id) => (typeof id === 'string' ? parseInt(id, 10) : id))
 
-    const result = await this.httpClient.post<{ InfoList?: any[] }>('/api/file/info', {
+    const result = await this.httpClient.post<{ InfoList?: any[]; infoList?: any[] }>('/api/file/info', {
       fileIdList: fileIdsNum.map((FileId) => ({ FileId }))
     })
+
+    // API实际返回小写 infoList（大写 InfoList 为历史误读）
+    const rawList = result.data?.infoList ?? result.data?.InfoList ?? []
 
     // API返回的是list字段，但我们需要统一为GetFileInfosResponse格式
     return {
       ...result,
       data: {
-        list: (result.data?.InfoList || []).map(mapNormalFileDetail)
+        list: rawList.map(mapNormalFileDetail)
       }
     }
   }

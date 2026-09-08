@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useToast } from '@nuxt/ui/composables'
-import type { AuthStatus, DriveItem } from '@123pan/shared-types'
+import type { AuthStatus, DriveItem, StorageUsage } from '@123pan/shared-types'
+import { formatSize } from '@renderer/utils/format'
 import FileTable from '@renderer/components/drive/FileTable.vue'
 
 const toast = useToast()
@@ -13,6 +14,17 @@ const avatar = ref('')
 const search = ref('')
 const items = ref<DriveItem[]>([])
 const loading = ref(false)
+const usage = ref<StorageUsage | null>(null)
+/** 进行中的下载（fileId -> 状态），驱动顶部细进度条 */
+const activeDownloads = ref(new Map<string, { name: string; percent: number }>())
+
+function updateDownloadProgress(progress: { fileId: string; name: string; received: number; total: number }): void {
+  const percent = progress.total > 0 ? Math.min(100, (progress.received / progress.total) * 100) : 0
+  activeDownloads.value.set(progress.fileId, { name: progress.name, percent })
+  if (percent >= 100) {
+    setTimeout(() => activeDownloads.value.delete(progress.fileId), 1500)
+  }
+}
 
 /** 剪贴板：剪切/复制待粘贴的文件 id 集合 */
 const clipboard = ref<{ op: 'copy' | 'cut'; ids: string[] } | null>(null)
@@ -48,6 +60,7 @@ const userMenuItems = [
       nickname.value = ''
       avatar.value = ''
       items.value = []
+      usage.value = null
       loadedFolderKeys.clear()
       authed.value = false
     }
@@ -184,12 +197,54 @@ function handleOpenFolder(folderId: string): void {
   void loadFolder(folderId)
 }
 
+function loadUsage(): void {
+  void window.api
+    .getUsage()
+    .then((data) => {
+      usage.value = data
+    })
+    .catch(() => {
+      /* 侧边栏非关键信息，静默失败 */
+    })
+}
+
 function handleFolderChange(folderId: string | null): void {
   currentFolderId.value = folderId
 }
 
 function handleSelectionChange(ids: string[]): void {
   selectedIds.value = ids
+}
+
+async function handleDownload(item: DriveItem): Promise<void> {
+  try {
+    const result = (await window.api.downloadFile(item.id, item.name)) as {
+      canceled: boolean
+      path?: string
+    }
+    if (result?.canceled) return
+    toast.add({
+      title: `已下载「${item.name}」`,
+      description: result?.path,
+      icon: 'i-lucide-download-check'
+    })
+    activeDownloads.value.delete(item.id)
+  } catch (error) {
+    showError(error, '下载文件失败')
+    activeDownloads.value.delete(item.id)
+  }
+}
+
+async function handleCopyLink(item: DriveItem): Promise<void> {
+  try {
+    await window.api.copyDownloadLink(item.id)
+    toast.add({
+      title: `「${item.name}」直链已复制到剪贴板`,
+      icon: 'i-lucide-link'
+    })
+  } catch (error) {
+    showError(error, '获取下载直链失败')
+  }
 }
 
 async function handleMove(id: string, targetId: string | null): Promise<void> {
@@ -212,22 +267,29 @@ function handleAuthenticated(status: AuthStatus): void {
   const displayName = status.nickname || status.account || '用户'
   toast.add({ title: `欢迎回来，${displayName}`, icon: 'i-lucide-party-popper' })
   void loadFolder(null)
+  loadUsage()
 }
 
 onMounted(async () => {
   window.addEventListener('keydown', onKeydown)
+  const removeProgress = window.api.onDownloadProgress(updateDownloadProgress)
   window.api.onLoginSuccess((status) => {
     applyAuthStatus(status)
     const displayName = status.nickname || status.account || '用户'
     toast.add({ title: `欢迎回来，${displayName}`, icon: 'i-lucide-party-popper' })
     void loadFolder(null)
+    loadUsage()
   })
   try {
     applyAuthStatus(await window.api.getAuthStatus())
   } catch {
     authed.value = false
   }
-  if (authed.value) void loadFolder(null)
+  if (authed.value) {
+    void loadFolder(null)
+    loadUsage()
+  }
+  onBeforeUnmount(removeProgress)
 })
 
 onBeforeUnmount(() => {
@@ -257,9 +319,19 @@ function handleUpload(): void {
         <div class="border-t border-default px-4 py-4">
           <div class="flex items-center justify-between text-xs text-muted">
             <span>存储空间</span>
-            <span class="tabular-nums">12.6 GB / 100 GB</span>
+            <span class="tabular-nums">
+              {{
+                usage
+                  ? `${formatSize(usage.used)} / ${formatSize(usage.permanent)}`
+                  : '加载中…'
+              }}
+            </span>
           </div>
-          <UProgress :model-value="12.6" size="sm" class="mt-2" />
+          <UProgress
+            :model-value="usage ? Math.min(100, (usage.used / usage.permanent) * 100) : 0"
+            size="sm"
+            class="mt-2"
+          />
         </div>
       </aside>
 
@@ -296,6 +368,23 @@ function handleUpload(): void {
           </UDropdownMenu>
         </header>
 
+        <div
+          v-if="activeDownloads.size > 0"
+          class="flex items-center gap-3 border-b border-default bg-elevated/50 px-6 py-1.5 text-xs text-muted"
+        >
+          <template v-for="[fileId, dl] in [...activeDownloads.entries()]" :key="fileId">
+            <UIcon name="i-lucide-download" class="size-3.5 shrink-0 animate-bounce" />
+            <span class="max-w-48 truncate">{{ dl.name }}</span>
+            <div class="h-1 w-40 overflow-hidden rounded-full bg-accented">
+              <div
+                class="h-full bg-primary transition-all"
+                :style="{ width: `${Math.max(2, dl.percent)}%` }"
+              />
+            </div>
+            <span class="tabular-nums">{{ Math.round(dl.percent) }}%</span>
+          </template>
+        </div>
+
         <div class="min-h-0 flex-1 p-4">
           <FileTable
             v-model:search="search"
@@ -305,6 +394,8 @@ function handleUpload(): void {
             @open-folder="handleOpenFolder"
             @folder-change="handleFolderChange"
             @selection-change="handleSelectionChange"
+            @download="handleDownload"
+            @copy-link="handleCopyLink"
             @move="handleMove"
           />
         </div>

@@ -1,5 +1,12 @@
-import { ipcMain } from 'electron'
-import type { DriveFileType, DriveItem } from '@123pan/shared-types'
+import { createWriteStream } from 'node:fs'
+import { once } from 'node:events'
+import { BrowserWindow, clipboard, dialog, ipcMain } from 'electron'
+import type {
+  DriveFileType,
+  DriveItem,
+  DownloadProgress,
+  StorageUsage
+} from '@123pan/shared-types'
 import { getSdk } from './auth'
 
 const EXT_TYPES: Array<[DriveFileType, string[]]> = [
@@ -106,6 +113,19 @@ export function registerDriveHandlers(): void {
     return fetchFolderItems(toFolderId(folderId, '目录 ID'))
   })
 
+  ipcMain.handle('drive:usage', async (): Promise<StorageUsage> => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    const response = await sdk.user.getUserInfo()
+    const info = response.data
+    if (!info?.uid) throw new Error('获取存储空间信息失败')
+    return {
+      used: info.spaceUsed,
+      permanent: info.spacePermanent,
+      temp: info.spaceTemp
+    }
+  })
+
   ipcMain.handle('drive:move', async (_event, fileIds: string[], targetFolderId: string | null) => {
     const sdk = getSdk()
     if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
@@ -155,5 +175,66 @@ export function registerDriveHandlers(): void {
       }
     }
     return fileIds
+  })
+
+  ipcMain.handle('drive:download-link', async (_event, fileId: string) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    const info = await sdk.file.getDownloadInfo({ fileId })
+    return { url: info.data.downloadUrl }
+  })
+
+  ipcMain.handle(
+    'drive:download',
+    async (_event, fileId: string, suggestedName: string, savePath?: string) => {
+      const sdk = getSdk()
+      if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+      const info = await sdk.file.getDownloadInfo({ fileId })
+      const url = info.data.downloadUrl
+
+      let filePath = savePath
+      if (!filePath) {
+        const choice = await dialog.showSaveDialog({ defaultPath: suggestedName })
+        if (choice.canceled || !choice.filePath) return { canceled: true }
+        filePath = choice.filePath
+      }
+
+      const response = await fetch(url)
+      if (!response.ok || !response.body) {
+        throw new Error(`下载失败：HTTP ${response.status}`)
+      }
+      const total = Number(response.headers.get('content-length') ?? 0)
+      const writer = createWriteStream(filePath)
+      let received = 0
+      let lastEmit = 0
+
+      try {
+        for await (const chunk of response.body) {
+          if (!writer.write(chunk)) await once(writer, 'drain')
+          received += chunk.length
+          const now = Date.now()
+          if (now - lastEmit > 400) {
+            lastEmit = now
+            const progress: DownloadProgress = { fileId, name: suggestedName, received, total }
+            for (const win of BrowserWindow.getAllWindows()) {
+              win.webContents.send('drive:download-progress', progress)
+            }
+          }
+        }
+      } finally {
+        writer.end()
+        await once(writer, 'finish')
+      }
+
+      return { canceled: false, path: filePath, size: received }
+    }
+  )
+
+  ipcMain.handle('drive:copy-link', async (_event, fileId: string) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    const info = await sdk.file.getDownloadInfo({ fileId })
+    clipboard.writeText(info.data.downloadUrl)
+    return info.data.downloadUrl
   })
 }

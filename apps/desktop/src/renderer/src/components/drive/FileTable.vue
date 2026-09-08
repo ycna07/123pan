@@ -12,6 +12,8 @@ const emit = defineEmits<{
   openFolder: [folderId: string]
   selectionChange: [ids: string[]]
   folderChange: [folderId: string | null]
+  download: [item: DriveItem]
+  copyLink: [item: DriveItem]
 }>()
 
 const cutSet = computed(() => new Set(props.cutIds ?? []))
@@ -273,25 +275,33 @@ function rowActions(item: DriveItem): DropdownMenuItem[][] {
   const actions: DropdownMenuItem[] = []
   if (item.type === 'folder') {
     actions.push({ label: '打开', icon: 'i-lucide-folder-open', onSelect: () => openItem(item) })
+  } else {
+    actions.push(
+      {
+        label: '下载',
+        icon: 'i-lucide-download',
+        onSelect: () => emit('download', item)
+      },
+      {
+        label: '复制直链',
+        icon: 'i-lucide-link',
+        onSelect: () => emit('copyLink', item)
+      }
+    )
   }
   actions.push(
-    {
-      label: '下载',
-      icon: 'i-lucide-download',
-      onSelect: () => toast.add({ title: `开始下载「${item.name}」`, icon: 'i-lucide-download' })
-    },
     {
       label: '分享',
       icon: 'i-lucide-link-2',
       onSelect: () =>
-        toast.add({ title: `已创建「${item.name}」的分享链接`, icon: 'i-lucide-link-2' })
+        toast.add({ title: `「${item.name}」分享功能开发中`, icon: 'i-lucide-link-2' })
     },
     {
       label: '重命名',
       icon: 'i-lucide-pencil',
       onSelect: () =>
         toast.add({
-          title: '演示版暂不支持重命名',
+          title: '重命名功能开发中',
           color: 'warning',
           icon: 'i-lucide-triangle-alert'
         })
@@ -302,8 +312,8 @@ function rowActions(item: DriveItem): DropdownMenuItem[][] {
       color: 'error',
       onSelect: () =>
         toast.add({
-          title: `已将「${item.name}」移入回收站`,
-          color: 'error',
+          title: `「${item.name}」删除功能开发中`,
+          color: 'warning',
           icon: 'i-lucide-trash-2'
         })
     }

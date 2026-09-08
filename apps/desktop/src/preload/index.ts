@@ -1,6 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { AuthStatus, DriveItem, QrLoginState } from '@123pan/shared-types'
+import type {
+  AuthStatus,
+  DriveItem,
+  DownloadProgress,
+  QrLoginState,
+  StorageUsage
+} from '@123pan/shared-types'
 
 // Custom APIs for renderer
 const api = {
@@ -17,6 +23,18 @@ const api = {
     ipcRenderer.invoke('drive:move', fileIds, targetFolderId),
   copyFiles: (fileIds: string[], targetFolderId: string | null): Promise<string[]> =>
     ipcRenderer.invoke('drive:copy', fileIds, targetFolderId),
+  getUsage: (): Promise<StorageUsage> => ipcRenderer.invoke('drive:usage'),
+  getDownloadLink: (fileId: string): Promise<{ url: string }> =>
+    ipcRenderer.invoke('drive:download-link', fileId),
+  downloadFile: (fileId: string, name: string, savePath?: string): Promise<unknown> =>
+    ipcRenderer.invoke('drive:download', fileId, name, savePath),
+  copyDownloadLink: (fileId: string): Promise<string> =>
+    ipcRenderer.invoke('drive:copy-link', fileId),
+  onDownloadProgress: (callback: (progress: DownloadProgress) => void): (() => void) => {
+    const listener = (_event: unknown, progress: DownloadProgress): void => callback(progress)
+    ipcRenderer.on('drive:download-progress', listener)
+    return () => ipcRenderer.removeListener('drive:download-progress', listener)
+  },
   onLoginSuccess: (callback: (status: AuthStatus) => void): (() => void) => {
     const listener = (_event: unknown, status: AuthStatus): void => callback(status)
     ipcRenderer.on('auth:login-success', listener)
