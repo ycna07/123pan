@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { DropdownMenuItem, TableColumn } from '@nuxt/ui'
 import { useToast } from '@nuxt/ui/composables'
 import type { DriveFileType, DriveItem } from '@123pan/shared-types'
 import { formatDate, formatSize } from '@renderer/utils/format'
 
-const props = defineProps<{ items: DriveItem[]; loading?: boolean; cutIds?: string[] }>()
+const props = defineProps<{
+  items: DriveItem[]
+  loading?: boolean
+  clipboard?: { op: 'copy' | 'cut'; ids: string[] } | null
+}>()
 
 const emit = defineEmits<{
   move: [id: string, targetId: string | null]
@@ -14,9 +18,68 @@ const emit = defineEmits<{
   folderChange: [folderId: string | null]
   download: [item: DriveItem]
   copyLink: [item: DriveItem]
+  paste: [targetFolderId: string]
+  clipboardOperation: [op: 'copy' | 'cut', id: string]
 }>()
 
-const cutSet = computed(() => new Set(props.cutIds ?? []))
+const cutSet = computed(() =>
+  props.clipboard?.op === 'cut' ? new Set(props.clipboard.ids) : new Set<string>()
+)
+
+interface ContextMenuState {
+  item: DriveItem
+  x: number
+  y: number
+}
+
+const contextMenu = ref<ContextMenuState | null>(null)
+
+function onRowContextMenu(item: DriveItem, event: MouseEvent): void {
+  event.preventDefault()
+  event.stopPropagation()
+  selectItem(item)
+  const MENU_WIDTH = 200
+  const MENU_HEIGHT = 320
+  contextMenu.value = {
+    item,
+    x: Math.min(event.clientX, window.innerWidth - MENU_WIDTH - 8),
+    y: Math.min(event.clientY, window.innerHeight - MENU_HEIGHT - 8)
+  }
+}
+
+function closeContextMenu(): void {
+  contextMenu.value = null
+}
+
+function runMenuAction(action: DropdownMenuItem): void {
+  closeContextMenu()
+  action.onSelect?.(new CustomEvent('menu-action'))
+}
+
+function onWindowClick(): void {
+  if (contextMenu.value) closeContextMenu()
+}
+
+function onWindowContextMenu(event: MouseEvent): void {
+  if (contextMenu.value) closeContextMenu()
+  event.preventDefault()
+}
+
+function onWindowKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') closeContextMenu()
+}
+
+onMounted(() => {
+  window.addEventListener('click', onWindowClick)
+  window.addEventListener('contextmenu', onWindowContextMenu)
+  window.addEventListener('keydown', onWindowKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('click', onWindowClick)
+  window.removeEventListener('contextmenu', onWindowContextMenu)
+  window.removeEventListener('keydown', onWindowKeydown)
+})
 
 const search = defineModel<string>('search', { default: '' })
 
@@ -96,6 +159,7 @@ function getRowId(row: DriveItem): string {
 function navigateTo(folderId: string | null): void {
   currentFolderId.value = folderId
   rowSelection.value = {}
+  closeContextMenu()
   emit('folderChange', folderId)
 }
 
@@ -240,6 +304,7 @@ interface ItemEventHandlers {
   dragover: (event: DragEvent) => void
   dragleave: () => void
   drop: () => void
+  contextmenu: (event: MouseEvent) => void
 }
 
 interface CrumbEventHandlers {
@@ -255,7 +320,8 @@ function rowHandlers(item: DriveItem): ItemEventHandlers {
     dragstart: (event: DragEvent) => onDragStart(item, event),
     dragover: (event: DragEvent) => onDragOver(item, event),
     dragleave: () => onDragLeave(item),
-    drop: () => onDrop(item)
+    drop: () => onDrop(item),
+    contextmenu: (event: MouseEvent) => onRowContextMenu(item, event)
   }
 }
 
@@ -271,25 +337,34 @@ function crumbHandlers(crumb: { id: string | null }): CrumbEventHandlers {
   }
 }
 
-function rowActions(item: DriveItem): DropdownMenuItem[][] {
+function buildMenuItems(item: DriveItem): DropdownMenuItem[][] {
   const actions: DropdownMenuItem[] = []
   if (item.type === 'folder') {
     actions.push({ label: '打开', icon: 'i-lucide-folder-open', onSelect: () => openItem(item) })
+    if ((props.clipboard?.ids.length ?? 0) > 0) {
+      actions.push({
+        label: '粘贴到此文件夹',
+        icon: 'i-lucide-clipboard-paste',
+        onSelect: () => emit('paste', item.id)
+      })
+    }
   } else {
     actions.push(
-      {
-        label: '下载',
-        icon: 'i-lucide-download',
-        onSelect: () => emit('download', item)
-      },
-      {
-        label: '复制直链',
-        icon: 'i-lucide-link',
-        onSelect: () => emit('copyLink', item)
-      }
+      { label: '下载', icon: 'i-lucide-download', onSelect: () => emit('download', item) },
+      { label: '复制直链', icon: 'i-lucide-link', onSelect: () => emit('copyLink', item) }
     )
   }
   actions.push(
+    {
+      label: '剪切',
+      icon: 'i-lucide-scissors',
+      onSelect: () => emit('clipboardOperation', 'cut', item.id)
+    },
+    {
+      label: '复制',
+      icon: 'i-lucide-copy',
+      onSelect: () => emit('clipboardOperation', 'copy', item.id)
+    },
     {
       label: '分享',
       icon: 'i-lucide-link-2',
@@ -345,6 +420,27 @@ function onContainerClick(event: MouseEvent): void {
       class="pointer-events-none absolute z-20 rounded-sm border border-primary bg-primary/10"
       :style="marqueeStyle"
     />
+
+    <Teleport to="body">
+      <div
+        v-if="contextMenu"
+        class="fixed z-50 min-w-44 rounded-lg border border-default bg-default p-1 shadow-lg"
+        :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+        @contextmenu.prevent
+      >
+        <button
+          v-for="action in buildMenuItems(contextMenu.item)[0]"
+          :key="action.label"
+          type="button"
+          class="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm text-default hover:bg-elevated"
+          :class="action.color === 'error' ? 'text-error hover:bg-error/10' : ''"
+          @click.stop="runMenuAction(action)"
+        >
+          <UIcon v-if="action.icon" :name="action.icon" class="size-4 shrink-0 text-muted" />
+          {{ action.label }}
+        </button>
+      </div>
+    </Teleport>
 
     <div class="flex items-center justify-between gap-4 border-b border-default px-4 py-2">
       <nav class="flex min-w-0 items-center" aria-label="面包屑">
@@ -448,7 +544,7 @@ function onContainerClick(event: MouseEvent): void {
           :class="dragOverId === row.original.id ? 'bg-primary/10' : ''"
           v-on="rowHandlers(row.original)"
         >
-          <UDropdownMenu :items="rowActions(row.original)" :content="{ align: 'end' }">
+          <UDropdownMenu :items="buildMenuItems(row.original)" :content="{ align: 'end' }">
             <UButton
               icon="i-lucide-ellipsis-vertical"
               size="sm"

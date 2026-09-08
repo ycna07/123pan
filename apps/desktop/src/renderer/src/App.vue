@@ -155,13 +155,13 @@ function copySelected(cut: boolean): void {
   })
 }
 
-async function pasteClipboard(): Promise<void> {
+async function pasteClipboard(targetOverride?: string): Promise<void> {
   const clip = clipboard.value
   if (!clip || clip.ids.length === 0) {
     toast.add({ title: '剪贴板为空', color: 'info', icon: 'i-lucide-info' })
     return
   }
-  const targetId = currentFolderId.value
+  const targetId = targetOverride ?? currentFolderId.value
   const ids = [...clip.ids] // 剪贴板是响应式代理，跨 IPC 必须先解包为纯数组
   const inSameFolder = ids.every((id) => {
     const item = items.value.find((entry) => entry.id === id)
@@ -236,6 +236,15 @@ function handleFolderChange(folderId: string | null): void {
 
 function handleSelectionChange(ids: string[]): void {
   selectedIds.value = ids
+}
+
+function handleClipboardOperation(op: 'copy' | 'cut', id: string): void {
+  selectedIds.value = [id]
+  copySelected(op === 'cut')
+}
+
+function handlePaste(targetFolderId: string): void {
+  void pasteClipboard(targetFolderId)
 }
 
 async function handleDownload(item: DriveItem): Promise<void> {
@@ -413,12 +422,14 @@ function handleUpload(): void {
             v-model:search="search"
             :items="items"
             :loading="loading"
-            :cut-ids="clipboard?.op === 'cut' ? clipboard.ids : []"
+            :clipboard="clipboard"
             @open-folder="handleOpenFolder"
             @folder-change="handleFolderChange"
             @selection-change="handleSelectionChange"
             @download="handleDownload"
             @copy-link="handleCopyLink"
+            @clipboard-operation="handleClipboardOperation"
+            @paste="handlePaste"
             @move="handleMove"
           />
         </div>
