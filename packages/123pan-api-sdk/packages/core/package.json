@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "123pan API SDK Core - Authentication and HTTP client",
   "type": "module",
-  "main": "../../dist/core.js",
-  "module": "../../dist/core.esm.js",
-  "types": "../../dist/core.d.ts",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
   "keywords": [
     "123pan",
     "api",

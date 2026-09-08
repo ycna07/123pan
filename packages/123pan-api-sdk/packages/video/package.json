@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "123pan API SDK video Module",
   "type": "module",
-  "main": "../../dist/video.js",
-  "module": "../../dist/video.esm.js",
-  "types": "../../dist/video.d.ts",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
   "keywords": [
     "123pan",
     "api",
