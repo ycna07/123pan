@@ -136,10 +136,14 @@ function onDragLeave(item: DriveItem): void {
 
 function onDrop(target: DriveItem | null): void {
   const dragging = draggingId.value
+  if (!dragging) return
+  if (target && !canDropInto(target)) {
+    dragOverId.value = null
+    draggingId.value = null
+    return
+  }
   dragOverId.value = null
   draggingId.value = null
-  if (!dragging) return
-  if (target && !canDropInto(target)) return
   emit('move', dragging, target ? target.id : null)
 }
 
