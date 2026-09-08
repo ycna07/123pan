@@ -7,7 +7,8 @@ import type {
   DownloadTask,
   LoginCredentials,
   QrLoginState,
-  StorageUsage
+  StorageUsage,
+  UploadProgress
 } from '@123pan/shared-types'
 
 declare global {
@@ -35,6 +36,11 @@ declare global {
       cancelDownload(id: string): Promise<boolean>
       revealDownload(id: string): Promise<boolean>
       onDownloadUpdated(callback: (task: DownloadTask) => void): () => void
+      uploadFile(filePath: string, parentFolderId: string | null): Promise<unknown>
+      createFolder(parentFolderId: string | null, name: string): Promise<unknown>
+      createOfflineTask(url: string, parentFolderId: string | null): Promise<unknown>
+      getPathForFile(file: File): string
+      onUploadProgress(callback: (progress: UploadProgress) => void): () => void
       onLoginSuccess(callback: (status: AuthStatus) => void): () => void
       onQrStatus(callback: (state: QrLoginState) => void): () => void
     }

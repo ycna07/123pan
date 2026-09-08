@@ -20,6 +20,7 @@ const emit = defineEmits<{
   copyLink: [item: DriveItem]
   paste: [targetFolderId: string]
   clipboardOperation: [op: 'copy' | 'cut', ids: string[]]
+  uploadFiles: [paths: string[]]
 }>()
 
 const cutSet = computed(() =>
@@ -412,6 +413,24 @@ function onContainerClick(event: MouseEvent): void {
   if ((event.target as HTMLElement).closest('tr')) return
   rowSelection.value = {}
 }
+
+/** 操作系统文件拖入：与内部拖拽（text/plain）互不干扰 */
+function onRootDragOver(event: DragEvent): void {
+  if (event.dataTransfer?.types.includes('Files')) {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+}
+
+function onRootDrop(event: DragEvent): void {
+  if (!event.dataTransfer?.types.includes('Files')) return
+  event.preventDefault()
+  event.stopPropagation()
+  const paths = [...event.dataTransfer.files]
+    .map((file) => window.api.getPathForFile(file))
+    .filter((path): path is string => !!path)
+  if (paths.length > 0) emit('uploadFiles', paths)
+}
 </script>
 
 <template>
@@ -422,6 +441,8 @@ function onContainerClick(event: MouseEvent): void {
     @pointermove="onMarqueeMove"
     @pointerup="onMarqueeEnd"
     @pointercancel="onMarqueeEnd"
+    @dragover="onRootDragOver"
+    @drop="onRootDrop"
   >
     <div
       v-if="marqueeStyle"

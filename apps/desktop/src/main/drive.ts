@@ -1,4 +1,5 @@
 import { createWriteStream, existsSync, unlinkSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { basename, join } from 'node:path'
 import { once } from 'node:events'
@@ -8,7 +9,8 @@ import type {
   DriveItem,
   DownloadProgress,
   DownloadTask,
-  StorageUsage
+  StorageUsage,
+  UploadProgress
 } from '@123pan/shared-types'
 import { getSettings } from './settings'
 import { getSdk } from './auth'
@@ -112,12 +114,27 @@ function toFolderId(folderId: string | null, label: string): number {
   return id
 }
 
+/** 统一包装：SDK 抛出的 ApiError 等非 Error 对象跨 IPC 会丢失消息，这里归一为 Error */
+function registerHandler<T extends unknown[]>(
+  channel: string,
+  handler: (event: Electron.IpcMainInvokeEvent, ...args: T) => Promise<unknown> | unknown
+): void {
+  ipcMain.handle(channel, async (event, ...args: T) => {
+    try {
+      return await handler(event, ...args)
+    } catch (error) {
+      const message = (error as { message?: string }).message || String(error)
+      throw new Error(message)
+    }
+  })
+}
+
 export function registerDriveHandlers(): void {
-  ipcMain.handle('drive:list', (_event, folderId: string | null) => {
+  registerHandler('drive:list', (_event, folderId: string | null) => {
     return fetchFolderItems(toFolderId(folderId, '目录 ID'))
   })
 
-  ipcMain.handle('drive:usage', async (): Promise<StorageUsage> => {
+  registerHandler('drive:usage', async (): Promise<StorageUsage> => {
     const sdk = getSdk()
     if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
     const response = await sdk.user.getUserInfo()
@@ -130,7 +147,7 @@ export function registerDriveHandlers(): void {
     }
   })
 
-  ipcMain.handle('drive:move', async (_event, fileIds: string[], targetFolderId: string | null) => {
+  registerHandler('drive:move', async (_event, fileIds: string[], targetFolderId: string | null) => {
     const sdk = getSdk()
     if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
     if (!Array.isArray(fileIds) || fileIds.length === 0) {
@@ -147,7 +164,7 @@ export function registerDriveHandlers(): void {
     return fileIds.map((id) => String(id))
   })
 
-  ipcMain.handle('drive:copy', async (_event, fileIds: string[], targetFolderId: string | null) => {
+  registerHandler('drive:copy', async (_event, fileIds: string[], targetFolderId: string | null) => {
     const sdk = getSdk()
     if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
     if (!Array.isArray(fileIds) || fileIds.length === 0) {
@@ -181,14 +198,14 @@ export function registerDriveHandlers(): void {
     return fileIds
   })
 
-  ipcMain.handle('drive:download-link', async (_event, fileId: string) => {
+  registerHandler('drive:download-link', async (_event, fileId: string) => {
     const sdk = getSdk()
     if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
     const info = await sdk.file.getDownloadInfo({ fileId })
     return { url: info.data.downloadUrl }
   })
 
-  ipcMain.handle(
+  registerHandler(
     'drive:download',
     async (_event, fileId: string, suggestedName: string, savePath?: string) => {
       const sdk = getSdk()
@@ -228,16 +245,16 @@ export function registerDriveHandlers(): void {
     }
   )
 
-  ipcMain.handle('drive:downloads:list', () =>
+  registerHandler('drive:downloads:list', () =>
     [...downloadTasks.values()].sort((a, b) => b.startedAt - a.startedAt)
   )
 
-  ipcMain.handle('drive:download-cancel', (_event, id: string) => {
+  registerHandler('drive:download-cancel', (_event, id: string) => {
     aborters.get(id)?.abort()
     return true
   })
 
-  ipcMain.handle('drive:downloads:reveal', (_event, id: string) => {
+  registerHandler('drive:downloads:reveal', (_event, id: string) => {
     const task = downloadTasks.get(id)
     if (task?.status === 'completed' && existsSync(task.path)) {
       shell.showItemInFolder(task.path)
@@ -245,12 +262,69 @@ export function registerDriveHandlers(): void {
     return true
   })
 
-  ipcMain.handle('drive:copy-link', async (_event, fileId: string) => {
+  registerHandler('drive:copy-link', async (_event, fileId: string) => {
     const sdk = getSdk()
     if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
     const info = await sdk.file.getDownloadInfo({ fileId })
     clipboard.writeText(info.data.downloadUrl)
     return info.data.downloadUrl
+  })
+
+  registerHandler('drive:mkdir', async (_event, parentFolderId: string | null, name: string) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('请输入文件夹名称')
+    const parentID = toFolderId(parentFolderId, '目录 ID')
+    const created = await sdk.file.upload.createFolder({ name: trimmed, parentID })
+    if (created.code !== 0 || !created.data?.dirID) {
+      throw new Error(created.message || '新建文件夹失败')
+    }
+    return { id: String(created.data.dirID), name: trimmed }
+  })
+
+  registerHandler(
+    'drive:upload',
+    async (_event, filePath: string, parentFolderId: string | null) => {
+      const sdk = getSdk()
+      if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+      const buffer = await readFile(filePath)
+      const name = basename(filePath)
+      const parentFileID = toFolderId(parentFolderId, '目录 ID')
+      const result = await sdk.file.upload.uploadFile({
+        filename: name,
+        file: buffer,
+        parentFileID,
+        duplicate: 1,
+        onProgress: (progress) => {
+          const uploadProgress: UploadProgress = {
+            name,
+            received: progress.loaded,
+            total: progress.total
+          }
+          broadcast('drive:upload-progress', uploadProgress)
+        }
+      })
+      if (!result.fileID) {
+        throw new Error('上传失败：未获取到文件 ID')
+      }
+      return { fileID: String(result.fileID), name, reused: result.isReuse }
+    }
+  )
+
+  registerHandler('drive:offline', async (_event, url: string, parentFolderId: string | null) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    const trimmed = url.trim()
+    if (!trimmed) throw new Error('请输入离线下载链接')
+    const task = await sdk.offline.createTask({
+      url: trimmed,
+      parentId: toFolderId(parentFolderId, '目录 ID')
+    })
+    if (task.code !== 0 || !task.data) {
+      throw new Error(task.message || '创建离线下载任务失败')
+    }
+    return { taskId: task.data.taskId, name: task.data.taskName }
   })
 }
 

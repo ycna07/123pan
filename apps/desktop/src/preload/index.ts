@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
   AppSettings,
@@ -7,7 +7,8 @@ import type {
   DownloadProgress,
   DownloadTask,
   QrLoginState,
-  StorageUsage
+  StorageUsage,
+  UploadProgress
 } from '@123pan/shared-types'
 
 // Custom APIs for renderer
@@ -50,6 +51,18 @@ const api = {
     const listener = (_event: unknown, task: DownloadTask): void => callback(task)
     ipcRenderer.on('drive:download-updated', listener)
     return () => ipcRenderer.removeListener('drive:download-updated', listener)
+  },
+  getPathForFile: (file: File): string => webUtils.getPathForFile(file),
+  uploadFile: (filePath: string, parentFolderId: string | null): Promise<unknown> =>
+    ipcRenderer.invoke('drive:upload', filePath, parentFolderId),
+  createFolder: (parentFolderId: string | null, name: string): Promise<unknown> =>
+    ipcRenderer.invoke('drive:mkdir', parentFolderId, name),
+  createOfflineTask: (url: string, parentFolderId: string | null): Promise<unknown> =>
+    ipcRenderer.invoke('drive:offline', url, parentFolderId),
+  onUploadProgress: (callback: (progress: UploadProgress) => void): (() => void) => {
+    const listener = (_event: unknown, progress: UploadProgress): void => callback(progress)
+    ipcRenderer.on('drive:upload-progress', listener)
+    return () => ipcRenderer.removeListener('drive:upload-progress', listener)
   },
   onLoginSuccess: (callback: (status: AuthStatus) => void): (() => void) => {
     const listener = (_event: unknown, status: AuthStatus): void => callback(status)

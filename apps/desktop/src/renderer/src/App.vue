@@ -20,16 +20,23 @@ const activeView = ref<'files' | 'downloads'>('files')
 /** 进行中的下载（任务 id -> 状态），驱动顶部细进度条 */
 const activeDownloads = ref(new Map<string, { name: string; percent: number }>())
 
-function updateDownloadProgress(progress: {
-  id: string
-  name: string
-  received: number
-  total: number
-}): void {
+function updateDownloadProgress(progress: { id: string; name: string; received: number; total: number }): void {
   const percent = progress.total > 0 ? Math.min(100, (progress.received / progress.total) * 100) : 0
   activeDownloads.value.set(progress.id, { name: progress.name, percent })
   if (percent >= 100 || progress.total === 0) {
     setTimeout(() => activeDownloads.value.delete(progress.id), 1500)
+  }
+}
+
+/** 进行中的上传（文件名 -> 百分比） */
+const activeUploads = ref(new Map<string, number>())
+
+function updateUploadProgress(progress: { name: string; received: number; total: number }): void {
+  const percent =
+    progress.total > 0 ? Math.min(100, (progress.received / progress.total) * 100) : 0
+  activeUploads.value.set(progress.name, percent)
+  if (percent >= 100) {
+    setTimeout(() => activeUploads.value.delete(progress.name), 1500)
   }
 }
 
@@ -247,6 +254,11 @@ function handlePaste(targetFolderId: string): void {
   void pasteClipboard(targetFolderId)
 }
 
+const currentFolderName = computed(() => {
+  if (!currentFolderId.value) return '全部文件'
+  return items.value.find((i) => i.id === currentFolderId.value)?.name ?? '全部文件'
+})
+
 async function handleDownload(item: DriveItem): Promise<void> {
   try {
     const result = (await window.api.downloadFile(item.id, item.name)) as {
@@ -261,6 +273,91 @@ async function handleDownload(item: DriveItem): Promise<void> {
     })
   } catch (error) {
     showError(error, '下载文件失败')
+  }
+}
+
+const uploadInput = ref<HTMLInputElement | null>(null)
+
+function pickUploads(): void {
+  uploadInput.value?.click()
+}
+
+async function handleUploadInput(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const files = [...(input.files ?? [])]
+  input.value = ''
+  for (const file of files) {
+    await uploadOne(window.api.getPathForFile(file))
+  }
+}
+
+async function uploadOne(filePath: string): Promise<void> {
+  const name = filePath.split(/[\\/]/).pop() ?? filePath
+  try {
+    await window.api.uploadFile(filePath, currentFolderId.value)
+    toast.add({ title: `「${name}」上传成功`, icon: 'i-lucide-cloud-upload' })
+    await reloadFolder(currentFolderId.value)
+  } catch (error) {
+    showError(error, `上传「${name}」失败`)
+  } finally {
+    activeUploads.value.delete(name)
+  }
+}
+
+function handleUploadDropped(paths: string[]): void {
+  for (const path of paths) void uploadOne(path)
+}
+
+const newFolderOpen = ref(false)
+const newFolderName = ref('')
+const creatingFolder = ref(false)
+
+function openNewFolder(): void {
+  newFolderName.value = ''
+  newFolderOpen.value = true
+}
+
+async function confirmNewFolder(): Promise<void> {
+  const name = newFolderName.value.trim()
+  if (!name) return
+  creatingFolder.value = true
+  try {
+    await window.api.createFolder(currentFolderId.value, name)
+    newFolderOpen.value = false
+    toast.add({ title: `文件夹「${name}」已创建`, icon: 'i-lucide-folder-plus' })
+    await reloadFolder(currentFolderId.value)
+  } catch (error) {
+    showError(error, '新建文件夹失败')
+  } finally {
+    creatingFolder.value = false
+  }
+}
+
+const offlineOpen = ref(false)
+const offlineUrl = ref('')
+const creatingOffline = ref(false)
+
+function openOffline(): void {
+  offlineUrl.value = ''
+  offlineOpen.value = true
+}
+
+async function confirmOffline(): Promise<void> {
+  const url = offlineUrl.value.trim()
+  if (!url) return
+  creatingOffline.value = true
+  try {
+    await window.api.createOfflineTask(url, currentFolderId.value)
+    offlineOpen.value = false
+    toast.add({
+      title: '离线下载任务已创建',
+      description: '可在 123pan 服务端任务列表中查看进度',
+      icon: 'i-lucide-cloud-download'
+    })
+  } catch (error) {
+    showError(error, '创建离线下载任务失败')
+  } finally {
+    creatingOffline.value = false
   }
 }
 
@@ -301,7 +398,8 @@ function handleAuthenticated(status: AuthStatus): void {
 
 onMounted(async () => {
   window.addEventListener('keydown', onKeydown)
-  const removeProgress = window.api.onDownloadProgress(updateDownloadProgress)
+  const removeDownloadProgress = window.api.onDownloadProgress(updateDownloadProgress)
+  const removeUploadProgress = window.api.onUploadProgress(updateUploadProgress)
   window.api.onLoginSuccess((status) => {
     applyAuthStatus(status)
     const displayName = status.nickname || status.account || '用户'
@@ -318,20 +416,15 @@ onMounted(async () => {
     void loadFolder(null)
     loadUsage()
   }
-  onBeforeUnmount(removeProgress)
+  onBeforeUnmount(() => {
+    removeDownloadProgress()
+    removeUploadProgress()
+  })
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
 })
-
-function handleUpload(): void {
-  toast.add({
-    title: '上传功能开发中',
-    description: '文件显示部分已完成，上传流程即将接入',
-    icon: 'i-lucide-upload'
-  })
-}
 </script>
 
 <template>
@@ -382,7 +475,32 @@ function handleUpload(): void {
               :loading="loading"
               @click="refreshLoadedFolders"
             />
-            <UButton icon="i-lucide-upload" size="sm" @click="handleUpload">上传文件</UButton>
+            <UButton
+              icon="i-lucide-folder-plus"
+              size="sm"
+              color="neutral"
+              variant="outline"
+              @click="openNewFolder"
+            >
+              新建文件夹
+            </UButton>
+            <UButton
+              icon="i-lucide-cloud-download"
+              size="sm"
+              color="neutral"
+              variant="outline"
+              @click="openOffline"
+            >
+              离线下载
+            </UButton>
+            <UButton icon="i-lucide-upload" size="sm" @click="pickUploads">上传文件</UButton>
+            <input
+              ref="uploadInput"
+              type="file"
+              multiple
+              class="hidden"
+              @change="handleUploadInput"
+            />
           </template>
           <span v-else class="ml-auto text-xs text-muted">
             {{ activeDownloads.size > 0 ? `${activeDownloads.size} 个下载进行中` : '' }}
@@ -401,13 +519,24 @@ function handleUpload(): void {
         </header>
 
         <div
-          v-if="activeView === 'files' && activeDownloads.size > 0"
-          class="flex items-center gap-3 border-b border-default bg-elevated/50 px-6 py-1.5 text-xs text-muted"
+          v-if="activeView === 'files' && activeDownloads.size + activeUploads.size > 0"
+          class="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-default bg-elevated/50 px-6 py-1.5 text-xs text-muted"
         >
+          <template v-for="[name, percent] in [...activeUploads.entries()]" :key="`u-${name}`">
+            <UIcon name="i-lucide-cloud-upload" class="size-3.5 shrink-0" />
+            <span class="max-w-36 truncate">{{ name }}</span>
+            <div class="h-1 w-32 overflow-hidden rounded-full bg-accented">
+              <div
+                class="h-full bg-primary transition-all"
+                :style="{ width: `${Math.max(2, percent)}%` }"
+              />
+            </div>
+            <span class="tabular-nums">{{ Math.round(percent) }}%</span>
+          </template>
           <template v-for="[id, dl] in [...activeDownloads.entries()]" :key="id">
             <UIcon name="i-lucide-download" class="size-3.5 shrink-0" />
-            <span class="max-w-48 truncate">{{ dl.name }}</span>
-            <div class="h-1 w-40 overflow-hidden rounded-full bg-accented">
+            <span class="max-w-36 truncate">{{ dl.name }}</span>
+            <div class="h-1 w-32 overflow-hidden rounded-full bg-accented">
               <div
                 class="h-full bg-primary transition-all"
                 :style="{ width: `${Math.max(2, dl.percent)}%` }"
@@ -431,12 +560,83 @@ function handleUpload(): void {
             @clipboard-operation="handleClipboardOperation"
             @paste="handlePaste"
             @move="handleMove"
+            @upload-files="handleUploadDropped"
           />
         </div>
         <div v-else class="min-h-0 flex-1 overflow-y-auto p-4">
           <DownloadManager />
         </div>
       </main>
+
+      <UModal v-model:open="newFolderOpen">
+        <UCard>
+          <template #header>
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-folder-plus" class="size-4 text-primary" />
+              <span class="font-medium text-highlighted">新建文件夹</span>
+            </div>
+          </template>
+          <UFormField label="文件夹名称" required>
+            <UInput
+              v-model="newFolderName"
+              placeholder="请输入名称"
+              size="lg"
+              class="w-full"
+              autofocus
+              @keydown.enter="confirmNewFolder"
+            />
+          </UFormField>
+          <template #footer>
+            <div class="flex justify-end gap-2">
+              <UButton color="neutral" variant="ghost" @click="newFolderOpen = false">取消</UButton>
+              <UButton
+                icon="i-lucide-folder-plus"
+                :loading="creatingFolder"
+                :disabled="!newFolderName.trim()"
+                @click="confirmNewFolder"
+              >
+                创建
+              </UButton>
+            </div>
+          </template>
+        </UCard>
+      </UModal>
+
+      <UModal v-model:open="offlineOpen">
+        <UCard>
+          <template #header>
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-cloud-download" class="size-4 text-primary" />
+              <span class="font-medium text-highlighted">离线下载</span>
+            </div>
+          </template>
+          <UFormField label="下载链接（HTTP/磁力链）" required>
+            <UInput
+              v-model="offlineUrl"
+              placeholder="粘贴下载链接"
+              size="lg"
+              class="w-full"
+              @keydown.enter="confirmOffline"
+            />
+          </UFormField>
+          <p class="mt-2 text-xs text-muted">
+            任务将在 123pan 服务端创建并下载到当前文件夹（{{ currentFolderName }}）。
+          </p>
+          <template #footer>
+            <div class="flex justify-end gap-2">
+              <UButton color="neutral" variant="ghost" @click="offlineOpen = false">取消</UButton>
+              <UButton
+                icon="i-lucide-cloud-download"
+                :loading="creatingOffline"
+                :disabled="!offlineUrl.trim()"
+                @click="confirmOffline"
+              >
+                创建任务
+              </UButton>
+            </div>
+          </template>
+        </UCard>
+      </UModal>
     </div>
 
     <div v-else class="flex h-screen items-center justify-center bg-default">

@@ -30,6 +30,12 @@ export interface DownloadProgress {
   total: number
 }
 
+export interface UploadProgress {
+  name: string
+  received: number
+  total: number
+}
+
 export type DownloadTaskStatus = 'downloading' | 'completed' | 'failed' | 'canceled'
 
 export interface DownloadTask {
