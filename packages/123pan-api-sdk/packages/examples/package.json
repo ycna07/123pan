@@ -1,20 +1,22 @@
 {
   "name": "@123pan/examples",
   "version": "1.0.0",
-  "description": "123pan API SDK examples and tests",
+  "description": "123pan API SDK 使用示例",
   "type": "module",
+  "private": true,
   "scripts": {
-    "test": "tsx index.ts",
-    "test:user": "tsx examples/user-test.ts",
-    "test:file": "tsx examples/file-test.ts",
-    "test:all": "tsx index.ts"
+    "login": "tsx src/login.ts",
+    "qr": "tsx src/qr-login.ts",
+    "user": "tsx src/user.ts",
+    "files": "tsx src/files.ts",
+    "debug-token": "tsx src/debug-token.ts"
   },
   "dependencies": {
+    "@123pan/sdk": "workspace:*",
     "tsx": "^4.7.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
-  },
-  "private": true
+  }
 }

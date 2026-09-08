@@ -1,7 +1,6 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "baseUrl": "../..",
     "paths": {
       "@123pan/core": ["./packages/core/src"],
       "@123pan/file": ["./packages/file/src"],
@@ -22,4 +21,3 @@
     "node_modules"
   ]
 }
-

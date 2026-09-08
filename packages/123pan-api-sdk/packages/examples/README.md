@@ -1,125 +1,54 @@
-# 123pan SDK Examples
+# @123pan/examples
 
-这个包包含了 123pan API SDK 的使用示例和测试代码。
+`@123pan/sdk` 的可运行示例集，全部通过环境变量读取测试凭证，不会硬编码任何账号信息。
 
-## 目录结构
+## 准备凭证
 
-```
-packages/examples/
-├── index.ts              # 综合测试示例
-├── examples/
-│   ├── user-test.ts      # 用户模块测试
-│   ├── file-test.ts      # 文件模块测试
-│   └── ...               # 其他模块测试
-├── package.json
-└── README.md
-```
+任选其一设置环境变量：
+
+| 变量 | 说明 |
+| --- | --- |
+| `P123_TEST_TOKEN` | 网页端 JWT：登录示例直接使用（优先级最高），`debug-token` 示例用它做解码展示 |
+| `P123_TEST_PASSPORT` + `P123_TEST_PASSWORD` | 账号（手机号或邮箱）与密码，token 未设置时使用 |
+
+所有变量均可写入本目录 `.env`（环境变量优先），参见 `.env.example`。
 
 ## 运行示例
 
-### 安装依赖
+```bash
+# 在 SDK 根目录（packages/123pan-api-sdk）执行，或进入本目录
+pnpm login         # 账号密码登录，查看 token 过期时间并清理凭证
+pnpm qr            # 扫码登录全流程（生成二维码 → 轮询 → 查询用户）
+pnpm user          # 查询用户信息与存储空间
+pnpm files         # 遍历根目录文件列表（lastFileId 翻页）
+pnpm debug-token   # 解析 .env 中的 debugToken（签名算法/用户信息/签名）
+```
+
+例如：
 
 ```bash
-# 在项目根目录运行
-yarn install
+P123_TEST_PASSPORT=13800000000 P123_TEST_PASSWORD=xxx pnpm user
 ```
 
-### 运行所有测试
+`debug-token` 示例与登录示例共用 `P123_TEST_TOKEN`：
 
 ```bash
-# 在项目根目录运行
-yarn workspace @123pan/examples test
-
-# 或者进入examples目录运行
-cd packages/examples
-yarn test
+cp .env.example .env   # 然后编辑 .env 填入 P123_TEST_TOKEN
+pnpm debug-token
 ```
 
-### 运行单个模块测试
-
-```bash
-# 测试用户模块
-yarn workspace @123pan/examples test:user
-
-# 测试文件模块
-yarn workspace @123pan/examples test:file
-```
-
-### 直接运行
-
-```bash
-# 在examples目录下
-npx tsx index.ts                    # 运行综合测试
-npx tsx examples/user-test.ts       # 运行用户模块测试
-npx tsx examples/file-test.ts       # 运行文件模块测试
-```
-
-## 配置说明
-
-所有示例都使用了以下配置：
-
-```typescript
-const config = {
-    passport: '你的账号（手机号或邮箱）',
-    password: '你的密码',
-    debug: true,                     // 启用调试模式
-    debugToken: '你的调试Token'       // 使用调试Token避免频繁请求
-};
-```
-
-### 获取调试Token
-
-1. 登录 [123pan官网](https://www.123pan.com) 并复制浏览器中的登录 token
-2. 将该 token 填入 `debugToken`
-
-### 使用真实API
-
-如果要测试真实的API调用，请：
-
-1. 移除 `debugToken` 配置
-2. 确保 `passport` 和 `password` 正确
-3. 注意API调用频率限制
+`.env` 已被 `.gitignore` 忽略，不会提交。
 
 ## 示例说明
 
-### index.ts - 综合测试
-- 测试用户信息获取
-- 测试文件列表获取
-- 测试Token信息获取
-- 展示完整的错误处理
+- `src/client.ts` — 共享客户端工厂，按环境变量创建 `Pan123SDK`；`tokenTtlSeconds` 解析 JWT 剩余有效期
+- `src/login.ts` — 账号密码登录（`/user/sign_in`），读取 `getTokenInfo` 后调用 `clearAuth`
+- `src/qr-login.ts` — 扫码登录：`createQrLogin` 生成二维码内容，2 秒轮询 `pollQrLogin` 直到成功/取消/过期
+- `src/user.ts` — `user.getUserInfo` 展示账号、VIP 与空间用量
+- `src/files.ts` — `file.getFileList` 分页遍历根目录（`lastFileId === -1` 表示最后一页）
+- `src/debug-token.ts` — 从 `.env` 读取 debugToken 并解码 JWT：Header 签名算法、Payload 用户信息（时间戳转本地时间、剩余有效期）、Signature；仅解码不验签
 
-### examples/user-test.ts - 用户模块
-- 获取用户基本信息
-- 显示存储空间使用情况
-- 展示VIP信息
-- 格式化输出用户数据
+## 未包含的模块
 
-### examples/file-test.ts - 文件模块
-- 获取根目录文件列表
-- 遍历文件夹内容
-- 文件搜索功能
-- 文件大小格式化
-
-## TypeScript 支持
-
-所有示例都使用 TypeScript 编写，提供：
-
-- ✅ 完整的类型检查
-- ✅ 智能代码补全
-- ✅ 编译时错误检测
-- ✅ 更好的开发体验
-
-## 注意事项
-
-1. **调试模式**: 示例默认启用调试模式，会输出详细的日志信息
-2. **Token过期**: debugToken 有过期时间，过期后需要重新获取
-3. **API限制**: 真实API调用有频率限制，请合理使用
-4. **错误处理**: 示例展示了完整的错误处理模式，建议在实际项目中参考
-
-## 添加新示例
-
-要添加新的模块测试：
-
-1. 在 `examples/` 目录下创建新的 `.ts` 文件
-2. 在 `package.json` 中添加对应的脚本
-3. 参考现有示例的结构和错误处理方式
+`image`（图床）、`video`（转码）与 `direct-link` 的部分能力属于 Open API / VIP 专属接口，
+普通用户 API 模式下没有对应端点，因此不在示例范围内；相关模块仍在 SDK 中保留。
