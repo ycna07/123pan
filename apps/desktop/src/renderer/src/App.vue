@@ -127,7 +127,8 @@ async function pasteClipboard(): Promise<void> {
     return
   }
   const targetId = currentFolderId.value
-  const inSameFolder = clip.ids.every((id) => {
+  const ids = [...clip.ids] // 剪贴板是响应式代理，跨 IPC 必须先解包为纯数组
+  const inSameFolder = ids.every((id) => {
     const item = items.value.find((entry) => entry.id === id)
     return item && (item.parentId ?? null) === targetId
   })
@@ -141,15 +142,15 @@ async function pasteClipboard(): Promise<void> {
   }
   try {
     if (clip.op === 'cut') {
-      await window.api.moveFiles(clip.ids, targetId)
+      await window.api.moveFiles(ids, targetId)
       for (const item of items.value) {
-        if (clip.ids.includes(item.id)) item.parentId = targetId
+        if (ids.includes(item.id)) item.parentId = targetId
       }
-      toast.add({ title: `已移动 ${clip.ids.length} 项`, icon: 'i-lucide-folder-input' })
+      toast.add({ title: `已移动 ${ids.length} 项`, icon: 'i-lucide-folder-input' })
     } else {
-      await window.api.copyFiles(clip.ids, targetId)
+      await window.api.copyFiles(ids, targetId)
       await reloadFolder(targetId)
-      toast.add({ title: `已粘贴 ${clip.ids.length} 项`, icon: 'i-lucide-copy-check' })
+      toast.add({ title: `已粘贴 ${ids.length} 项`, icon: 'i-lucide-copy-check' })
     }
     clipboard.value = null
   } catch (error) {
