@@ -238,8 +238,8 @@ function handleSelectionChange(ids: string[]): void {
   selectedIds.value = ids
 }
 
-function handleClipboardOperation(op: 'copy' | 'cut', id: string): void {
-  selectedIds.value = [id]
+function handleClipboardOperation(op: 'copy' | 'cut', ids: string[]): void {
+  selectedIds.value = ids
   copySelected(op === 'cut')
 }
 

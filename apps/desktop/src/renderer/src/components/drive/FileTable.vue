@@ -19,7 +19,7 @@ const emit = defineEmits<{
   download: [item: DriveItem]
   copyLink: [item: DriveItem]
   paste: [targetFolderId: string]
-  clipboardOperation: [op: 'copy' | 'cut', id: string]
+  clipboardOperation: [op: 'copy' | 'cut', ids: string[]]
 }>()
 
 const cutSet = computed(() =>
@@ -37,7 +37,8 @@ const contextMenu = ref<ContextMenuState | null>(null)
 function onRowContextMenu(item: DriveItem, event: MouseEvent): void {
   event.preventDefault()
   event.stopPropagation()
-  selectItem(item)
+  // 右键已选中的项时保留整组选择；未选中则只选中该项
+  if (!rowSelection.value[item.id]) selectItem(item)
   const MENU_WIDTH = 200
   const MENU_HEIGHT = 320
   contextMenu.value = {
@@ -337,7 +338,14 @@ function crumbHandlers(crumb: { id: string | null }): CrumbEventHandlers {
   }
 }
 
-function buildMenuItems(item: DriveItem): DropdownMenuItem[][] {
+  /** 右键菜单剪切/复制的作用范围：已选多项时作用于整组选择，否则只作用于右键项 */
+  function clipboardIdsFor(item: DriveItem): string[] {
+    return rowSelection.value[item.id]
+      ? Object.keys(rowSelection.value).filter((key) => rowSelection.value[key])
+      : [item.id]
+  }
+
+  function buildMenuItems(item: DriveItem): DropdownMenuItem[][] {
   const actions: DropdownMenuItem[] = []
   if (item.type === 'folder') {
     actions.push({ label: '打开', icon: 'i-lucide-folder-open', onSelect: () => openItem(item) })
@@ -358,12 +366,12 @@ function buildMenuItems(item: DriveItem): DropdownMenuItem[][] {
     {
       label: '剪切',
       icon: 'i-lucide-scissors',
-      onSelect: () => emit('clipboardOperation', 'cut', item.id)
+      onSelect: () => emit('clipboardOperation', 'cut', clipboardIdsFor(item))
     },
     {
       label: '复制',
       icon: 'i-lucide-copy',
-      onSelect: () => emit('clipboardOperation', 'copy', item.id)
+      onSelect: () => emit('clipboardOperation', 'copy', clipboardIdsFor(item))
     },
     {
       label: '分享',
