@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useToast } from '@nuxt/ui/composables'
 import type { AuthStatus, DriveItem, StorageUsage } from '@123pan/shared-types'
 import { formatSize } from '@renderer/utils/format'
 import FileTable from '@renderer/components/drive/FileTable.vue'
+import DownloadManager from '@renderer/components/drive/DownloadManager.vue'
 
 const toast = useToast()
 
@@ -15,14 +16,20 @@ const search = ref('')
 const items = ref<DriveItem[]>([])
 const loading = ref(false)
 const usage = ref<StorageUsage | null>(null)
-/** 进行中的下载（fileId -> 状态），驱动顶部细进度条 */
+const activeView = ref<'files' | 'downloads'>('files')
+/** 进行中的下载（任务 id -> 状态），驱动顶部细进度条 */
 const activeDownloads = ref(new Map<string, { name: string; percent: number }>())
 
-function updateDownloadProgress(progress: { fileId: string; name: string; received: number; total: number }): void {
+function updateDownloadProgress(progress: {
+  id: string
+  name: string
+  received: number
+  total: number
+}): void {
   const percent = progress.total > 0 ? Math.min(100, (progress.received / progress.total) * 100) : 0
-  activeDownloads.value.set(progress.fileId, { name: progress.name, percent })
-  if (percent >= 100) {
-    setTimeout(() => activeDownloads.value.delete(progress.fileId), 1500)
+  activeDownloads.value.set(progress.id, { name: progress.name, percent })
+  if (percent >= 100 || progress.total === 0) {
+    setTimeout(() => activeDownloads.value.delete(progress.id), 1500)
   }
 }
 
@@ -36,8 +43,23 @@ const selectedIds = ref<string[]>([])
 const loadedFolderKeys = new Set<string>()
 const loadingFolderKeys = new Set<string>()
 
-const navItems = [
-  { label: '全部文件', icon: 'i-lucide-folder', active: true },
+const navItems = computed(() => [
+  {
+    label: '全部文件',
+    icon: 'i-lucide-folder',
+    active: activeView.value === 'files',
+    onSelect: () => {
+      activeView.value = 'files'
+    }
+  },
+  {
+    label: '下载管理',
+    icon: 'i-lucide-download',
+    badge: activeDownloads.value.size > 0 ? String(activeDownloads.value.size) : undefined,
+    onSelect: () => {
+      activeView.value = 'downloads'
+    }
+  },
   {
     label: '我的分享',
     icon: 'i-lucide-link-2',
@@ -48,7 +70,7 @@ const navItems = [
     icon: 'i-lucide-trash-2',
     onSelect: () => toast.add({ title: '回收站（开发中）', color: 'info' })
   }
-]
+])
 
 const userMenuItems = [
   {
@@ -220,18 +242,16 @@ async function handleDownload(item: DriveItem): Promise<void> {
   try {
     const result = (await window.api.downloadFile(item.id, item.name)) as {
       canceled: boolean
-      path?: string
+      id?: string
     }
     if (result?.canceled) return
     toast.add({
-      title: `已下载「${item.name}」`,
-      description: result?.path,
-      icon: 'i-lucide-download-check'
+      title: `「${item.name}」已加入下载队列`,
+      description: '可在侧边栏「下载管理」查看进度',
+      icon: 'i-lucide-download'
     })
-    activeDownloads.value.delete(item.id)
   } catch (error) {
     showError(error, '下载文件失败')
-    activeDownloads.value.delete(item.id)
   }
 }
 
@@ -320,11 +340,7 @@ function handleUpload(): void {
           <div class="flex items-center justify-between text-xs text-muted">
             <span>存储空间</span>
             <span class="tabular-nums">
-              {{
-                usage
-                  ? `${formatSize(usage.used)} / ${formatSize(usage.permanent)}`
-                  : '加载中…'
-              }}
+              {{ usage ? `${formatSize(usage.used)} / ${formatSize(usage.permanent)}` : '加载中…' }}
             </span>
           </div>
           <UProgress
@@ -337,24 +353,31 @@ function handleUpload(): void {
 
       <main class="flex min-w-0 flex-1 flex-col">
         <header class="flex items-center gap-3 border-b border-default px-6 py-3">
-          <h1 class="text-base font-semibold text-highlighted">全部文件</h1>
-          <UInput
-            v-model="search"
-            icon="i-lucide-search"
-            placeholder="搜索文件..."
-            size="sm"
-            class="ml-auto w-64"
-          />
-          <UButton
-            icon="i-lucide-refresh-cw"
-            size="sm"
-            color="neutral"
-            variant="ghost"
-            aria-label="刷新"
-            :loading="loading"
-            @click="refreshLoadedFolders"
-          />
-          <UButton icon="i-lucide-upload" size="sm" @click="handleUpload">上传文件</UButton>
+          <h1 class="text-base font-semibold text-highlighted">
+            {{ activeView === 'files' ? '全部文件' : '下载管理' }}
+          </h1>
+          <template v-if="activeView === 'files'">
+            <UInput
+              v-model="search"
+              icon="i-lucide-search"
+              placeholder="搜索文件..."
+              size="sm"
+              class="ml-auto w-64"
+            />
+            <UButton
+              icon="i-lucide-refresh-cw"
+              size="sm"
+              color="neutral"
+              variant="ghost"
+              aria-label="刷新"
+              :loading="loading"
+              @click="refreshLoadedFolders"
+            />
+            <UButton icon="i-lucide-upload" size="sm" @click="handleUpload">上传文件</UButton>
+          </template>
+          <span v-else class="ml-auto text-xs text-muted">
+            {{ activeDownloads.size > 0 ? `${activeDownloads.size} 个下载进行中` : '' }}
+          </span>
           <span class="hidden max-w-40 truncate text-sm text-muted md:block">
             {{ nickname || account }}
           </span>
@@ -369,11 +392,11 @@ function handleUpload(): void {
         </header>
 
         <div
-          v-if="activeDownloads.size > 0"
+          v-if="activeView === 'files' && activeDownloads.size > 0"
           class="flex items-center gap-3 border-b border-default bg-elevated/50 px-6 py-1.5 text-xs text-muted"
         >
-          <template v-for="[fileId, dl] in [...activeDownloads.entries()]" :key="fileId">
-            <UIcon name="i-lucide-download" class="size-3.5 shrink-0 animate-bounce" />
+          <template v-for="[id, dl] in [...activeDownloads.entries()]" :key="id">
+            <UIcon name="i-lucide-download" class="size-3.5 shrink-0" />
             <span class="max-w-48 truncate">{{ dl.name }}</span>
             <div class="h-1 w-40 overflow-hidden rounded-full bg-accented">
               <div
@@ -385,7 +408,7 @@ function handleUpload(): void {
           </template>
         </div>
 
-        <div class="min-h-0 flex-1 p-4">
+        <div v-if="activeView === 'files'" class="min-h-0 flex-1 p-4">
           <FileTable
             v-model:search="search"
             :items="items"
@@ -398,6 +421,9 @@ function handleUpload(): void {
             @copy-link="handleCopyLink"
             @move="handleMove"
           />
+        </div>
+        <div v-else class="min-h-0 flex-1 overflow-y-auto p-4">
+          <DownloadManager />
         </div>
       </main>
     </div>

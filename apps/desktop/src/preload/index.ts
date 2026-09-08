@@ -1,9 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
+  AppSettings,
   AuthStatus,
   DriveItem,
   DownloadProgress,
+  DownloadTask,
   QrLoginState,
   StorageUsage
 } from '@123pan/shared-types'
@@ -34,6 +36,20 @@ const api = {
     const listener = (_event: unknown, progress: DownloadProgress): void => callback(progress)
     ipcRenderer.on('drive:download-progress', listener)
     return () => ipcRenderer.removeListener('drive:download-progress', listener)
+  },
+  getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
+  updateSettings: (patch: Partial<AppSettings>): Promise<AppSettings> =>
+    ipcRenderer.invoke('settings:update', patch),
+  chooseDownloadDir: (): Promise<string | null> =>
+    ipcRenderer.invoke('settings:choose-download-dir'),
+  downloadsList: (): Promise<DownloadTask[]> => ipcRenderer.invoke('drive:downloads:list'),
+  cancelDownload: (id: string): Promise<boolean> => ipcRenderer.invoke('drive:download-cancel', id),
+  revealDownload: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('drive:downloads:reveal', id),
+  onDownloadUpdated: (callback: (task: DownloadTask) => void): (() => void) => {
+    const listener = (_event: unknown, task: DownloadTask): void => callback(task)
+    ipcRenderer.on('drive:download-updated', listener)
+    return () => ipcRenderer.removeListener('drive:download-updated', listener)
   },
   onLoginSuccess: (callback: (status: AuthStatus) => void): (() => void) => {
     const listener = (_event: unknown, status: AuthStatus): void => callback(status)

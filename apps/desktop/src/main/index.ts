@@ -1,12 +1,27 @@
 import { app, shell, BrowserWindow } from 'electron'
-import { join } from 'path'
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
+import { dirname, join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initAuth, registerAuthHandlers } from './auth'
 import { registerDriveHandlers } from './drive'
+import { loadSettings, registerSettingsHandlers } from './settings'
 import icon from '../../resources/icon.png?asset'
 
+// userData 固定为 ~/.config/123pan（避免 scoped 包名产生 @ 目录）
+app.setPath('userData', join(app.getPath('appData'), '123pan'))
+
+// 一次性迁移旧位置的登录令牌
+const legacyTokenPath = join(app.getPath('appData'), '@123pan', 'desktop', 'auth-token.json')
+const currentTokenPath = join(app.getPath('userData'), 'auth-token.json')
+if (existsSync(legacyTokenPath) && !existsSync(currentTokenPath)) {
+  mkdirSync(dirname(currentTokenPath), { recursive: true })
+  copyFileSync(legacyTokenPath, currentTokenPath)
+}
+
+loadSettings()
 registerAuthHandlers()
 registerDriveHandlers()
+registerSettingsHandlers()
 
 function createWindow(): void {
   // Create the browser window.

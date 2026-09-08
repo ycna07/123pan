@@ -23,8 +23,31 @@ export interface StorageUsage {
 }
 
 export interface DownloadProgress {
+  id: string
   fileId: string
   name: string
   received: number
   total: number
+}
+
+export type DownloadTaskStatus = 'downloading' | 'completed' | 'failed' | 'canceled'
+
+export interface DownloadTask {
+  id: string
+  fileId: string
+  name: string
+  path: string
+  size: number
+  received: number
+  status: DownloadTaskStatus
+  error?: string
+  startedAt: number
+  finishedAt?: number
+}
+
+export interface AppSettings {
+  /** 默认下载目录；null 时使用系统下载目录 */
+  downloadDir: string | null
+  /** 每次下载询问保存位置 */
+  askWhereToSave: boolean
 }

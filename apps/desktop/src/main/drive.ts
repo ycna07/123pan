@@ -1,12 +1,16 @@
-import { createWriteStream } from 'node:fs'
+import { createWriteStream, existsSync, unlinkSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { basename, join } from 'node:path'
 import { once } from 'node:events'
-import { BrowserWindow, clipboard, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import type {
   DriveFileType,
   DriveItem,
   DownloadProgress,
+  DownloadTask,
   StorageUsage
 } from '@123pan/shared-types'
+import { getSettings } from './settings'
 import { getSdk } from './auth'
 
 const EXT_TYPES: Array<[DriveFileType, string[]]> = [
@@ -191,44 +195,55 @@ export function registerDriveHandlers(): void {
       if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
       const info = await sdk.file.getDownloadInfo({ fileId })
       const url = info.data.downloadUrl
+      const name = basename(suggestedName)
 
+      const settings = getSettings()
       let filePath = savePath
       if (!filePath) {
-        const choice = await dialog.showSaveDialog({ defaultPath: suggestedName })
-        if (choice.canceled || !choice.filePath) return { canceled: true }
-        filePath = choice.filePath
-      }
-
-      const response = await fetch(url)
-      if (!response.ok || !response.body) {
-        throw new Error(`下载失败：HTTP ${response.status}`)
-      }
-      const total = Number(response.headers.get('content-length') ?? 0)
-      const writer = createWriteStream(filePath)
-      let received = 0
-      let lastEmit = 0
-
-      try {
-        for await (const chunk of response.body) {
-          if (!writer.write(chunk)) await once(writer, 'drain')
-          received += chunk.length
-          const now = Date.now()
-          if (now - lastEmit > 400) {
-            lastEmit = now
-            const progress: DownloadProgress = { fileId, name: suggestedName, received, total }
-            for (const win of BrowserWindow.getAllWindows()) {
-              win.webContents.send('drive:download-progress', progress)
-            }
-          }
+        if (settings.askWhereToSave) {
+          const choice = await dialog.showSaveDialog({
+            defaultPath: settings.downloadDir ? join(settings.downloadDir, name) : name
+          })
+          if (choice.canceled || !choice.filePath) return { canceled: true }
+          filePath = choice.filePath
+        } else {
+          filePath = resolveTargetPath(name)
         }
-      } finally {
-        writer.end()
-        await once(writer, 'finish')
       }
 
-      return { canceled: false, path: filePath, size: received }
+      const task: DownloadTask = {
+        id: randomUUID(),
+        fileId,
+        name,
+        path: filePath,
+        size: 0,
+        received: 0,
+        status: 'downloading',
+        startedAt: Date.now()
+      }
+      downloadTasks.set(task.id, task)
+      emitTask(task)
+      void runDownload(task, url)
+      return { canceled: false, id: task.id, path: filePath }
     }
   )
+
+  ipcMain.handle('drive:downloads:list', () =>
+    [...downloadTasks.values()].sort((a, b) => b.startedAt - a.startedAt)
+  )
+
+  ipcMain.handle('drive:download-cancel', (_event, id: string) => {
+    aborters.get(id)?.abort()
+    return true
+  })
+
+  ipcMain.handle('drive:downloads:reveal', (_event, id: string) => {
+    const task = downloadTasks.get(id)
+    if (task?.status === 'completed' && existsSync(task.path)) {
+      shell.showItemInFolder(task.path)
+    }
+    return true
+  })
 
   ipcMain.handle('drive:copy-link', async (_event, fileId: string) => {
     const sdk = getSdk()
@@ -237,4 +252,105 @@ export function registerDriveHandlers(): void {
     clipboard.writeText(info.data.downloadUrl)
     return info.data.downloadUrl
   })
+}
+
+interface DownloadTaskInternal extends DownloadTask {
+  controller?: AbortController
+}
+
+const downloadTasks = new Map<string, DownloadTaskInternal>()
+const aborters = new Map<string, AbortController>()
+
+function broadcast(channel: string, payload: unknown): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send(channel, payload)
+  }
+}
+
+function emitTask(task: DownloadTaskInternal): void {
+  const serialized: DownloadTask = {
+    id: task.id,
+    fileId: task.fileId,
+    name: task.name,
+    path: task.path,
+    size: task.size,
+    received: task.received,
+    status: task.status,
+    ...(task.error && { error: task.error }),
+    startedAt: task.startedAt,
+    ...(task.finishedAt !== undefined && { finishedAt: task.finishedAt })
+  }
+  broadcast('drive:download-updated', serialized)
+}
+
+function emitProgress(task: DownloadTaskInternal): void {
+  const progress: DownloadProgress = {
+    id: task.id,
+    fileId: task.fileId,
+    name: task.name,
+    received: task.received,
+    total: task.size
+  }
+  broadcast('drive:download-progress', progress)
+}
+
+/** 按“默认下载目录 + 自动重命名”解析落盘路径；askWhereToSave 时返回空串表示交给对话框 */
+function resolveTargetPath(name: string): string {
+  const settings = getSettings()
+  const dir = settings.downloadDir || app.getPath('downloads')
+  const dot = name.lastIndexOf('.')
+  const base = dot > 0 ? name.slice(0, dot) : name
+  const ext = dot > 0 ? name.slice(dot) : ''
+  // 已有文件占用，或注册表中存在同路径的活动任务（下载尚未落盘的窗口期）
+  const taken = (path: string): boolean =>
+    existsSync(path) ||
+    [...downloadTasks.values()].some((t) => t.path === path && t.status === 'downloading')
+  let candidate = join(dir, name)
+  let index = 1
+  while (taken(candidate)) {
+    candidate = join(dir, `${base}(${index++})${ext}`)
+  }
+  return candidate
+}
+
+async function runDownload(task: DownloadTaskInternal, url: string): Promise<void> {
+  const controller = new AbortController()
+  task.controller = controller
+  aborters.set(task.id, controller)
+  let writer: ReturnType<typeof createWriteStream> | null = null
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok || !response.body) {
+      throw new Error(`下载失败：HTTP ${response.status}`)
+    }
+    task.size = Number(response.headers.get('content-length') ?? 0)
+    writer = createWriteStream(task.path)
+    let lastEmit = 0
+    for await (const chunk of response.body) {
+      if (!writer.write(chunk)) await once(writer, 'drain')
+      task.received += chunk.length
+      const now = Date.now()
+      if (now - lastEmit > 300) {
+        lastEmit = now
+        emitProgress(task)
+        emitTask(task)
+      }
+    }
+    writer.end()
+    await once(writer, 'finish')
+    task.status = 'completed'
+    task.finishedAt = Date.now()
+  } catch (error) {
+    task.status = controller.signal.aborted ? 'canceled' : 'failed'
+    task.error = controller.signal.aborted ? undefined : String((error as Error).message || error)
+    writer?.end()
+    if (writer) await once(writer, 'finish')
+    // 取消/失败时清理半成品文件
+    if (existsSync(task.path)) unlinkSync(task.path)
+  } finally {
+    aborters.delete(task.id)
+    task.finishedAt = task.finishedAt ?? Date.now()
+    emitProgress(task)
+    emitTask(task)
+  }
 }
