@@ -5,9 +5,12 @@ import { useToast } from '@nuxt/ui/composables'
 import type { DriveFileType, DriveItem } from '@123pan/shared-types'
 import { formatDate, formatSize } from '@renderer/utils/format'
 
-const props = defineProps<{ items: DriveItem[] }>()
+const props = defineProps<{ items: DriveItem[]; loading?: boolean }>()
 
-const emit = defineEmits<{ move: [id: string, targetId: string | null] }>()
+const emit = defineEmits<{
+  move: [id: string, targetId: string | null]
+  openFolder: [folderId: string]
+}>()
 
 const search = defineModel<string>('search', { default: '' })
 
@@ -95,6 +98,7 @@ function selectItem(item: DriveItem): void {
 
 function openItem(item: DriveItem): void {
   if (item.type === 'folder') {
+    emit('openFolder', item.id)
     navigateTo(item.id)
   } else {
     toast.add({ title: `「${item.name}」预览功能开发中`, icon: 'i-lucide-eye' })
@@ -423,8 +427,13 @@ function onContainerClick(event: MouseEvent): void {
       </template>
       <template #empty>
         <div class="flex flex-col items-center gap-2 py-16 text-muted">
-          <UIcon name="i-lucide-folder-open" class="size-10 text-dimmed" />
-          <p>{{ search ? '没有找到匹配的文件' : '此文件夹为空' }}</p>
+          <UIcon
+            :name="loading ? 'i-lucide-loader-circle' : 'i-lucide-folder-open'"
+            class="size-10 text-dimmed"
+            :class="loading ? 'animate-spin' : ''"
+          />
+          <p v-if="loading">正在加载文件列表…</p>
+          <p v-else>{{ search ? '没有找到匹配的文件' : '此文件夹为空' }}</p>
         </div>
       </template>
     </UTable>

@@ -2,9 +2,11 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initAuth, registerAuthHandlers } from './auth'
+import { registerDriveHandlers } from './drive'
 import icon from '../../resources/icon.png?asset'
 
 registerAuthHandlers()
+registerDriveHandlers()
 
 function createWindow(): void {
   // Create the browser window.

@@ -1,5 +1,5 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type { AuthStatus, LoginCredentials, QrLoginState } from '@123pan/shared-types'
+import type { AuthStatus, DriveItem, LoginCredentials, QrLoginState } from '@123pan/shared-types'
 
 declare global {
   interface Window {
@@ -11,6 +11,7 @@ declare global {
       qrStop(): Promise<void>
       getAuthStatus(): Promise<AuthStatus>
       logout(): Promise<void>
+      listFiles(folderId: string | null): Promise<DriveItem[]>
       onLoginSuccess(callback: (status: AuthStatus) => void): () => void
       onQrStatus(callback: (state: QrLoginState) => void): () => void
     }

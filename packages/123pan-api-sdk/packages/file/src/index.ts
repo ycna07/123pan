@@ -50,8 +50,8 @@ export interface FileListItem {
   storageNode?: string
   /** 创建时间 */
   createAt?: string
-  /** 更新时间 */
-  updateAt?: number
+  /** 更新时间（ISO 字符串） */
+  updateAt?: string
 }
 
 /** 获取文件列表响应 */
@@ -516,7 +516,7 @@ function mapNormalFileItem(raw: any): FileListItem {
     ...(raw?.S3KeyFlag !== undefined && { s3KeyFlag: String(raw.S3KeyFlag) }),
     ...(raw?.StorageNode !== undefined && { storageNode: String(raw.StorageNode) }),
     ...(raw?.CreateAt !== undefined && { createAt: String(raw.CreateAt) }),
-    ...(raw?.UpdateAt !== undefined && { updateAt: toNumber(raw.UpdateAt) })
+    ...(raw?.UpdateAt !== undefined && { updateAt: String(raw.UpdateAt) })
   }
 }
 

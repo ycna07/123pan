@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { AuthStatus, QrLoginState } from '@123pan/shared-types'
+import type { AuthStatus, DriveItem, QrLoginState } from '@123pan/shared-types'
 
 // Custom APIs for renderer
 const api = {
@@ -11,6 +11,8 @@ const api = {
   qrStop: (): Promise<void> => ipcRenderer.invoke('auth:qr-stop'),
   getAuthStatus: (): Promise<unknown> => ipcRenderer.invoke('auth:status'),
   logout: (): Promise<void> => ipcRenderer.invoke('auth:logout'),
+  listFiles: (folderId: string | null): Promise<DriveItem[]> =>
+    ipcRenderer.invoke('drive:list', folderId),
   onLoginSuccess: (callback: (status: AuthStatus) => void): (() => void) => {
     const listener = (_event: unknown, status: AuthStatus): void => callback(status)
     ipcRenderer.on('auth:login-success', listener)
