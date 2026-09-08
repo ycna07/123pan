@@ -13,6 +13,7 @@ declare global {
       logout(): Promise<void>
       listFiles(folderId: string | null): Promise<DriveItem[]>
       moveFiles(fileIds: string[], targetFolderId: string | null): Promise<string[]>
+      copyFiles(fileIds: string[], targetFolderId: string | null): Promise<string[]>
       onLoginSuccess(callback: (status: AuthStatus) => void): () => void
       onQrStatus(callback: (state: QrLoginState) => void): () => void
     }

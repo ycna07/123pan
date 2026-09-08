@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useToast } from '@nuxt/ui/composables'
 import type { AuthStatus, DriveItem } from '@123pan/shared-types'
 import FileTable from '@renderer/components/drive/FileTable.vue'
@@ -13,6 +13,12 @@ const avatar = ref('')
 const search = ref('')
 const items = ref<DriveItem[]>([])
 const loading = ref(false)
+
+/** 剪贴板：剪切/复制待粘贴的文件 id 集合 */
+const clipboard = ref<{ op: 'copy' | 'cut'; ids: string[] } | null>(null)
+/** FileTable 当前浏览的文件夹（粘贴目标） */
+const currentFolderId = ref<string | null>(null)
+const selectedIds = ref<string[]>([])
 
 /** 已加载过内容的文件夹 key（'' 表示根目录），用于刷新与去重 */
 const loadedFolderKeys = new Set<string>()
@@ -88,8 +94,101 @@ async function refreshLoadedFolders(): Promise<void> {
   await Promise.all(keys.map((key) => loadFolder(key === '' ? null : key)))
 }
 
+/** 只重载单个文件夹（复制后目标目录会出现新 id 的副本） */
+async function reloadFolder(folderId: string | null): Promise<void> {
+  const key = folderId ?? ''
+  items.value = items.value.filter((item) => (item.parentId ?? '') !== key)
+  loadedFolderKeys.delete(key)
+  await loadFolder(folderId)
+}
+
+function copySelected(cut: boolean): void {
+  if (selectedIds.value.length === 0) {
+    toast.add({
+      title: cut ? '请先勾选要剪切的文件' : '请先勾选要复制的文件',
+      color: 'info',
+      icon: 'i-lucide-info'
+    })
+    return
+  }
+  clipboard.value = { op: cut ? 'cut' : 'copy', ids: [...selectedIds.value] }
+  toast.add({
+    title: cut
+      ? `已剪切 ${selectedIds.value.length} 项，Ctrl+V 粘贴到当前文件夹`
+      : `已复制 ${selectedIds.value.length} 项，Ctrl+V 粘贴到当前文件夹`,
+    icon: cut ? 'i-lucide-scissors' : 'i-lucide-copy'
+  })
+}
+
+async function pasteClipboard(): Promise<void> {
+  const clip = clipboard.value
+  if (!clip || clip.ids.length === 0) {
+    toast.add({ title: '剪贴板为空', color: 'info', icon: 'i-lucide-info' })
+    return
+  }
+  const targetId = currentFolderId.value
+  const inSameFolder = clip.ids.every((id) => {
+    const item = items.value.find((entry) => entry.id === id)
+    return item && (item.parentId ?? null) === targetId
+  })
+  if (inSameFolder) {
+    toast.add({
+      title: '文件已在当前文件夹中，请进入其他文件夹后粘贴',
+      color: 'info',
+      icon: 'i-lucide-info'
+    })
+    return
+  }
+  try {
+    if (clip.op === 'cut') {
+      await window.api.moveFiles(clip.ids, targetId)
+      for (const item of items.value) {
+        if (clip.ids.includes(item.id)) item.parentId = targetId
+      }
+      toast.add({ title: `已移动 ${clip.ids.length} 项`, icon: 'i-lucide-folder-input' })
+    } else {
+      await window.api.copyFiles(clip.ids, targetId)
+      await reloadFolder(targetId)
+      toast.add({ title: `已粘贴 ${clip.ids.length} 项`, icon: 'i-lucide-copy-check' })
+    }
+    clipboard.value = null
+  } catch (error) {
+    showError(error, clip.op === 'cut' ? '移动文件失败' : '复制文件失败')
+  }
+}
+
+function onKeydown(event: KeyboardEvent): void {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
+  const target = event.target as HTMLElement | null
+  if (
+    target &&
+    (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+  ) {
+    return
+  }
+  const key = event.key.toLowerCase()
+  if (key === 'c') {
+    event.preventDefault()
+    copySelected(false)
+  } else if (key === 'x') {
+    event.preventDefault()
+    copySelected(true)
+  } else if (key === 'v') {
+    event.preventDefault()
+    void pasteClipboard()
+  }
+}
+
 function handleOpenFolder(folderId: string): void {
   void loadFolder(folderId)
+}
+
+function handleFolderChange(folderId: string | null): void {
+  currentFolderId.value = folderId
+}
+
+function handleSelectionChange(ids: string[]): void {
+  selectedIds.value = ids
 }
 
 async function handleMove(id: string, targetId: string | null): Promise<void> {
@@ -115,6 +214,7 @@ function handleAuthenticated(status: AuthStatus): void {
 }
 
 onMounted(async () => {
+  window.addEventListener('keydown', onKeydown)
   window.api.onLoginSuccess((status) => {
     applyAuthStatus(status)
     const displayName = status.nickname || status.account || '用户'
@@ -127,6 +227,10 @@ onMounted(async () => {
     authed.value = false
   }
   if (authed.value) void loadFolder(null)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
 })
 
 function handleUpload(): void {
@@ -196,7 +300,10 @@ function handleUpload(): void {
             v-model:search="search"
             :items="items"
             :loading="loading"
+            :cut-ids="clipboard?.op === 'cut' ? clipboard.ids : []"
             @open-folder="handleOpenFolder"
+            @folder-change="handleFolderChange"
+            @selection-change="handleSelectionChange"
             @move="handleMove"
           />
         </div>

@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { DropdownMenuItem, TableColumn } from '@nuxt/ui'
 import { useToast } from '@nuxt/ui/composables'
 import type { DriveFileType, DriveItem } from '@123pan/shared-types'
 import { formatDate, formatSize } from '@renderer/utils/format'
 
-const props = defineProps<{ items: DriveItem[]; loading?: boolean }>()
+const props = defineProps<{ items: DriveItem[]; loading?: boolean; cutIds?: string[] }>()
 
 const emit = defineEmits<{
   move: [id: string, targetId: string | null]
   openFolder: [folderId: string]
+  selectionChange: [ids: string[]]
+  folderChange: [folderId: string | null]
 }>()
+
+const cutSet = computed(() => new Set(props.cutIds ?? []))
 
 const search = defineModel<string>('search', { default: '' })
 
@@ -90,7 +94,21 @@ function getRowId(row: DriveItem): string {
 function navigateTo(folderId: string | null): void {
   currentFolderId.value = folderId
   rowSelection.value = {}
+  emit('folderChange', folderId)
 }
+
+watch(
+  rowSelection,
+  (selection) => {
+    emit(
+      'selectionChange',
+      Object.entries(selection)
+        .filter(([, selected]) => selected)
+        .map(([id]) => id)
+    )
+  },
+  { deep: true }
+)
 
 function selectItem(item: DriveItem): void {
   rowSelection.value = { [item.id]: true }
@@ -372,7 +390,10 @@ function onContainerClick(event: MouseEvent): void {
         <div
           draggable="true"
           class="-m-4 flex h-full min-w-0 items-center gap-2.5 p-4"
-          :class="dragOverId === row.original.id ? 'bg-primary/10' : ''"
+          :class="[
+            dragOverId === row.original.id ? 'bg-primary/10' : '',
+            cutSet.has(row.original.id) ? 'opacity-50' : ''
+          ]"
           v-on="rowHandlers(row.original)"
         >
           <UIcon

@@ -15,6 +15,8 @@ const api = {
     ipcRenderer.invoke('drive:list', folderId),
   moveFiles: (fileIds: string[], targetFolderId: string | null): Promise<string[]> =>
     ipcRenderer.invoke('drive:move', fileIds, targetFolderId),
+  copyFiles: (fileIds: string[], targetFolderId: string | null): Promise<string[]> =>
+    ipcRenderer.invoke('drive:copy', fileIds, targetFolderId),
   onLoginSuccess: (callback: (status: AuthStatus) => void): (() => void) => {
     const listener = (_event: unknown, status: AuthStatus): void => callback(status)
     ipcRenderer.on('auth:login-success', listener)

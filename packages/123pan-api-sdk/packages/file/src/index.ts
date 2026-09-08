@@ -281,6 +281,63 @@ export class FileModule {
   }
 
   /**
+   * 批量复制文件
+   *
+   * 普通用户 API 的复制为异步任务：先取文件完整信息，再创建 goapi 复制任务。
+   * 可用 getCopyTask 轮询任务进度。
+   * @param params 复制参数
+   * @param params.fileIDs 文件ID数组
+   * @param params.toParentFileID 要复制到的目标文件夹id，复制到根目录时填写0
+   * @returns 创建的复制任务 id
+   */
+  async copyFiles(params: {
+    /** 文件ID数组 */
+    fileIDs: (number | string)[]
+    /** 要复制到的目标文件夹id，复制到根目录时填写0 */
+    toParentFileID: number
+  }): Promise<ApiResponse<{ taskId: number; mode: number } | null>> {
+    const { fileIDs, toParentFileID } = params
+    if (fileIDs.length === 0) {
+      throw new Error('复制文件失败：未选择文件')
+    }
+
+    // goapi 复制要求传入文件完整信息（PascalCase 原始结构），先取 InfoList
+    // 注意：/api/file/info 实际返回小写 infoList（大写 InfoList 是历史误读）
+    const infoResponse = await this.httpClient.post<{
+      InfoList?: Record<string, unknown>[]
+      infoList?: Record<string, unknown>[]
+    }>('/api/file/info', {
+      fileIdList: fileIDs.map((id) => ({ FileId: typeof id === 'string' ? parseInt(id, 10) : id }))
+    })
+    const infoList = infoResponse.data?.infoList ?? infoResponse.data?.InfoList ?? []
+    if (infoList.length === 0) {
+      throw new Error('复制文件失败：未获取到文件信息')
+    }
+
+    return this.httpClient.post<{ taskId: number; mode: number }>(
+      '/api/restful/goapi/v1/file/copy/async',
+      {
+        fileList: infoList,
+        targetFileId: toParentFileID
+      }
+    )
+  }
+
+  /**
+   * 查询复制任务进度
+   * @param taskId copyFiles 返回的任务 id
+   * @returns 任务状态：status 2 且 errorCode 0 表示完成
+   */
+  async getCopyTask(taskId: number): Promise<
+    ApiResponse<{ taskId: number; status: number; errorCode: number; currentCount: number; reason: string } | null>
+  > {
+    // 注意：HttpClient.get 的第二个参数直接就是 query 对象（非 axios 的 { params } 包装）
+    return this.httpClient.get<
+      { taskId: number; status: number; errorCode: number; currentCount: number; reason: string }
+    >('/api/restful/goapi/v1/file/copy/task', { taskId })
+  }
+
+  /**
    * 执行一批移动请求（内部方法）
    */
   private async _moveBatch(

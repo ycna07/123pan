@@ -122,4 +122,38 @@ export function registerDriveHandlers(): void {
     }
     return fileIds.map((id) => String(id))
   })
+
+  ipcMain.handle('drive:copy', async (_event, fileIds: string[], targetFolderId: string | null) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    if (!Array.isArray(fileIds) || fileIds.length === 0) {
+      throw new Error('请选择要复制的文件')
+    }
+    const targetId = toFolderId(targetFolderId, '目标目录 ID')
+    const created = await sdk.file.copyFiles({
+      fileIDs: fileIds.map((id) => Number(id)),
+      toParentFileID: targetId
+    })
+    if (created.code !== 0 || !created.data?.taskId) {
+      throw new Error(created.message || '创建复制任务失败')
+    }
+    // 复制是异步任务，轮询直到完成（status 2 / errorCode 0）
+    const deadline = Date.now() + 15_000
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, 600))
+      const task = await sdk.file.getCopyTask(created.data.taskId)
+      const info = task.data
+      if (task.code !== 0 || !info) {
+        throw new Error(task.message || '查询复制任务失败')
+      }
+      if (info.errorCode !== 0) {
+        throw new Error(info.reason || '复制文件失败')
+      }
+      if (info.status === 2) break
+      if (Date.now() > deadline) {
+        throw new Error('复制任务超时，请稍后手动刷新查看结果')
+      }
+    }
+    return fileIds
+  })
 }
