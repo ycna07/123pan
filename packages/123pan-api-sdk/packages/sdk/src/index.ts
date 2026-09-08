@@ -1,18 +1,18 @@
 /**
  * 123pan API SDK
- * 
+ *
  * 使用示例:
  * ```typescript
  * import Pan123SDK from '123pan-api-sdk';
- * 
+ *
  * const sdk = new Pan123SDK({
  *   passport: 'your-account',
  *   password: 'your-password',
  * });
- * 
+ *
  * // 获取文件列表
  * const files = await sdk.file.getFileList();
- * 
+ *
  * // 创建分享
  * const share = await sdk.file.share.createShare({
  *   shareName: '我的分享',
@@ -22,123 +22,123 @@
  * ```
  */
 
-import { HttpClient, type SdkConfig } from '@123pan/core';
-import { FileModule } from '@123pan/file';
-import { UserModule } from '@123pan/user';
-import { OfflineModule } from '@123pan/offline';
-import { DirectLinkModule } from '@123pan/direct-link';
-import { ImageModule } from '@123pan/image';
-import { VideoModule } from '@123pan/video';
+import { HttpClient, type SdkConfig } from '@123pan/core'
+import { FileModule } from '@123pan/file'
+import { UserModule } from '@123pan/user'
+import { OfflineModule } from '@123pan/offline'
+import { DirectLinkModule } from '@123pan/direct-link'
+import { ImageModule } from '@123pan/image'
+import { VideoModule } from '@123pan/video'
 
 export class Pan123SDK {
-  private httpClient: HttpClient;
+  private httpClient: HttpClient
   // 各功能模块
-  public readonly file: FileModule;
-  public readonly user: UserModule;
-  public readonly offline: OfflineModule;
-  public readonly directLink: DirectLinkModule;
-  public readonly image: ImageModule;
-  public readonly video: VideoModule;
-  public readonly saaa:any;
+  public readonly file: FileModule
+  public readonly user: UserModule
+  public readonly offline: OfflineModule
+  public readonly directLink: DirectLinkModule
+  public readonly image: ImageModule
+  public readonly video: VideoModule
+  public readonly saaa: any
 
   constructor(config: SdkConfig) {
     // 认证配置由 AuthManager 校验：token 或 passport+password。
-    this.httpClient = new HttpClient(config);
+    this.httpClient = new HttpClient(config)
 
     // 初始化各功能模块
-    this.file = new FileModule(this.httpClient);
-    this.user = new UserModule(this.httpClient);
-    this.offline = new OfflineModule(this.httpClient);
-    this.directLink = new DirectLinkModule(this.httpClient);
-    this.image = new ImageModule(this.httpClient);
-    this.video = new VideoModule(this.httpClient);
+    this.file = new FileModule(this.httpClient)
+    this.user = new UserModule(this.httpClient)
+    this.offline = new OfflineModule(this.httpClient)
+    this.directLink = new DirectLinkModule(this.httpClient)
+    this.image = new ImageModule(this.httpClient)
+    this.video = new VideoModule(this.httpClient)
   }
 
   /**
    * 获取当前访问令牌信息
    */
   async getTokenInfo() {
-    const authManager = this.httpClient.getAuthManager();
-    
+    const authManager = this.httpClient.getAuthManager()
+
     // 如果没有token信息，先获取token
-    let tokenInfo = authManager.getTokenInfo();
+    let tokenInfo = authManager.getTokenInfo()
     if (!tokenInfo) {
       // 触发token获取
-      await authManager.getAccessToken();
-      tokenInfo = authManager.getTokenInfo();
+      await authManager.getAccessToken()
+      tokenInfo = authManager.getTokenInfo()
     }
-    
-    return tokenInfo;
+
+    return tokenInfo
   }
 
   /**
    * 强制刷新访问令牌
    */
   async refreshToken() {
-    return this.httpClient.getAuthManager().forceRefreshToken();
+    return this.httpClient.getAuthManager().forceRefreshToken()
   }
 
   /**
    * 生成扫码登录二维码
    */
   async createQrLogin() {
-    return this.httpClient.getAuthManager().generateQrLogin();
+    return this.httpClient.getAuthManager().generateQrLogin()
   }
 
   /**
    * 轮询扫码登录结果；登录成功后当前实例已持有 token，可直接调用其它 API
    */
   async pollQrLogin(uniID: string) {
-    return this.httpClient.getAuthManager().getQrLoginResult(uniID);
+    return this.httpClient.getAuthManager().getQrLoginResult(uniID)
   }
 
   /**
    * 清除认证信息
    */
   clearAuth() {
-    this.httpClient.getAuthManager().clearToken();
+    this.httpClient.getAuthManager().clearToken()
   }
 
   /**
    * 获取限流器状态
    */
   getRateLimiterStatus() {
-    const rateLimiter = this.httpClient.getRateLimiter();
+    const rateLimiter = this.httpClient.getRateLimiter()
     return {
-      availableTokens: (rateLimiter as any).getAvailableTokens?.() || 0,
-    };
+      availableTokens: (rateLimiter as any).getAvailableTokens?.() || 0
+    }
   }
 
   /**
    * 重置限流器
    */
   resetRateLimit() {
-    this.httpClient.getRateLimiter().reset();
+    this.httpClient.getRateLimiter().reset()
   }
 
   /**
    * 更新SDK配置
    */
   updateConfig(newConfig: Partial<SdkConfig>) {
-    this.httpClient.updateConfig(newConfig);
+    this.httpClient.updateConfig(newConfig)
   }
 
   /**
    * 获取HTTP客户端实例（用于高级用法）
    */
   getHttpClient(): HttpClient {
-    return this.httpClient;
+    return this.httpClient
   }
 }
 
 // 导出所有类型和模块
-export * from '@123pan/core';
-export * from '@123pan/file';
-export * from '@123pan/user';
-export * from '@123pan/offline';
-export * from '@123pan/direct-link';
-export * from '@123pan/image';
-export * from '@123pan/video';
+export * from '@123pan/core'
+export * from '@123pan/file'
+export * from '@123pan/user'
+export * from '@123pan/offline'
+export * from '@123pan/direct-link'
+export * from '@123pan/image'
+export * from '@123pan/video'
 
 // 默认导出
-export default Pan123SDK;
+export default Pan123SDK

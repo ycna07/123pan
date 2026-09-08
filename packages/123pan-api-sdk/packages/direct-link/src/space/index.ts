@@ -2,16 +2,16 @@
  * 直链空间管理模块
  */
 
-import { HttpClient } from '@123pan/core';
-import type { ApiResponse } from '@123pan/core';
+import { HttpClient } from '@123pan/core'
+import type { ApiResponse } from '@123pan/core'
 import type {
   EnableDirectLinkParams,
   EnableDirectLinkResponse,
   DisableDirectLinkParams,
   DisableDirectLinkResponse,
   GetDirectLinkUrlParams,
-  GetDirectLinkUrlResponse,
-} from './types';
+  GetDirectLinkUrlResponse
+} from './types'
 
 export class SpaceModule {
   constructor(private httpClient: HttpClient) {}
@@ -24,17 +24,17 @@ export class SpaceModule {
    * @returns 成功启用的文件夹名称
    */
   async enable(params: EnableDirectLinkParams): Promise<ApiResponse<EnableDirectLinkResponse>> {
-    const { fileID } = params;
+    const { fileID } = params
 
     // 验证 fileID
     if (!fileID || fileID <= 0) {
-      throw new Error('fileID 必须是有效的正整数');
+      throw new Error('fileID 必须是有效的正整数')
     }
 
     const result = await this.httpClient.post<any>('/api/cdn-link/enable', {
-      fileID,
-    });
-    return { ...result, data: mapFilename(result.data) };
+      fileID
+    })
+    return { ...result, data: mapFilename(result.data) }
   }
 
   /**
@@ -45,17 +45,17 @@ export class SpaceModule {
    * @returns 成功禁用的文件夹名称
    */
   async disable(params: DisableDirectLinkParams): Promise<ApiResponse<DisableDirectLinkResponse>> {
-    const { fileID } = params;
+    const { fileID } = params
 
     // 验证 fileID
     if (!fileID || fileID <= 0) {
-      throw new Error('fileID 必须是有效的正整数');
+      throw new Error('fileID 必须是有效的正整数')
     }
 
     const result = await this.httpClient.post<any>('/api/cdn-link/disable', {
-      fileID,
-    });
-    return { ...result, data: mapFilename(result.data) };
+      fileID
+    })
+    return { ...result, data: mapFilename(result.data) }
   }
 
   /**
@@ -66,21 +66,21 @@ export class SpaceModule {
    * @returns 文件对应的直链链接
    */
   async getUrl(params: GetDirectLinkUrlParams): Promise<ApiResponse<GetDirectLinkUrlResponse>> {
-    const { fileID } = params;
+    const { fileID } = params
 
     // 验证 fileID
     if (!fileID || fileID <= 0) {
-      throw new Error('fileID 必须是有效的正整数');
+      throw new Error('fileID 必须是有效的正整数')
     }
 
     const result = await this.httpClient.get<any>('/api/cdn-link/url', {
-      fileID,
-    });
-    const url = result.data?.url || result.data?.URL || result.data;
+      fileID
+    })
+    const url = result.data?.url || result.data?.URL || result.data
     if (typeof url !== 'string' || !url) {
-      throw new Error('直链响应中没有有效 URL');
+      throw new Error('直链响应中没有有效 URL')
     }
-    return { ...result, data: { url } };
+    return { ...result, data: { url } }
   }
 
   /**
@@ -89,13 +89,13 @@ export class SpaceModule {
    * @returns 刷新结果
    */
   async refreshCache(): Promise<ApiResponse<{}>> {
-    return this.httpClient.post<{}>('/api/restful/goapi/v1/cdnLink/cache/refresh', {});
+    return this.httpClient.post<{}>('/api/restful/goapi/v1/cdnLink/cache/refresh', {})
   }
 }
 
 function mapFilename(data: any): EnableDirectLinkResponse {
   if (typeof data === 'string') {
-    return { filename: data };
+    return { filename: data }
   }
-  return { filename: data?.filename || data?.FileName || '' };
+  return { filename: data?.filename || data?.FileName || '' }
 }

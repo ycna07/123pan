@@ -2,10 +2,11 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "lib": ["ES2020"],
     "outDir": "./dist",
     "rootDir": "./packages",
+    "types": ["node"],
     "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -18,7 +19,6 @@
     "noImplicitReturns": true,
     "exactOptionalPropertyTypes": true,
     "resolveJsonModule": true,
-    "baseUrl": ".",
     "paths": {
       "@123pan/core": ["./packages/core/src"],
       "@123pan/file": ["./packages/file/src"],

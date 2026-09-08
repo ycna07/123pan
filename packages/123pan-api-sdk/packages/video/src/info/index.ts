@@ -2,15 +2,15 @@
  * 视频信息模块
  */
 
-import { HttpClient } from '@123pan/core';
-import type { ApiResponse } from '@123pan/core';
+import { HttpClient } from '@123pan/core'
+import type { ApiResponse } from '@123pan/core'
 import type {
   GetTranscodeFolderInfoResponse,
   GetVideoResolutionsResponse,
   GetTranscodeListResponse,
   GetTranscodeRecordResponse,
-  GetTranscodeResultResponse,
-} from './types';
+  GetTranscodeResultResponse
+} from './types'
 
 export class InfoModule {
   constructor(private httpClient: HttpClient) {}
@@ -21,7 +21,7 @@ export class InfoModule {
    * @returns 转码空间文件夹信息
    */
   async getFolderInfo(): Promise<ApiResponse<GetTranscodeFolderInfoResponse>> {
-    return this.httpClient.post<GetTranscodeFolderInfoResponse>('/api/v1/transcode/folder/info', {});
+    return this.httpClient.post<GetTranscodeFolderInfoResponse>('/api/v1/transcode/folder/info', {})
   }
 
   /**
@@ -33,13 +33,16 @@ export class InfoModule {
    */
   async getVideoResolutions(params: {
     /** 文件ID */
-    fileId: number | string;
+    fileId: number | string
   }): Promise<ApiResponse<GetVideoResolutionsResponse>> {
-    const fileId = typeof params.fileId === 'string' ? parseInt(params.fileId, 10) : params.fileId;
-    
-    return this.httpClient.post<GetVideoResolutionsResponse>('/api/v1/transcode/video/resolutions', {
-      fileId,
-    });
+    const fileId = typeof params.fileId === 'string' ? parseInt(params.fileId, 10) : params.fileId
+
+    return this.httpClient.post<GetVideoResolutionsResponse>(
+      '/api/v1/transcode/video/resolutions',
+      {
+        fileId
+      }
+    )
   }
 
   /**
@@ -54,50 +57,50 @@ export class InfoModule {
    */
   async getVideoResolutionsWithPolling(params: {
     /** 文件ID */
-    fileId: number | string;
+    fileId: number | string
     /** 轮询间隔（毫秒），默认10秒 */
-    pollingInterval?: number;
+    pollingInterval?: number
     /** 最大轮询次数，默认30次 */
-    maxAttempts?: number;
+    maxAttempts?: number
     /** 轮询回调函数 */
-    onPolling?: (attempt: number, isGetting: boolean) => void;
+    onPolling?: (attempt: number, isGetting: boolean) => void
   }): Promise<ApiResponse<GetVideoResolutionsResponse>> {
-    const { fileId, pollingInterval = 10000, maxAttempts = 30, onPolling } = params;
-    
-    let attempt = 0;
-    
+    const { fileId, pollingInterval = 10000, maxAttempts = 30, onPolling } = params
+
+    let attempt = 0
+
     while (attempt < maxAttempts) {
-      attempt++;
-      
-      const result = await this.getVideoResolutions({ fileId });
-      
+      attempt++
+
+      const result = await this.getVideoResolutions({ fileId })
+
       // 触发回调
       if (onPolling && result.data) {
-        onPolling(attempt, result.data.IsGetResolution);
+        onPolling(attempt, result.data.IsGetResolution)
       }
-      
+
       // 如果获取失败，直接返回错误
       if (result.code !== 0) {
-        return result;
+        return result
       }
-      
+
       // 如果已经获取完成（IsGetResolution 为 false），返回结果
       if (result.data && !result.data.IsGetResolution) {
-        return result;
+        return result
       }
-      
+
       // 如果还在获取中且未达到最大次数，等待后继续轮询
       if (attempt < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, pollingInterval));
+        await new Promise((resolve) => setTimeout(resolve, pollingInterval))
       }
     }
-    
+
     // 达到最大轮询次数仍未获取到结果
     return {
       code: -1,
       message: `轮询超时：已尝试 ${maxAttempts} 次，仍未获取到视频分辨率信息`,
-      data: null as any,
-    };
+      data: null as any
+    }
   }
 
   /**
@@ -109,13 +112,13 @@ export class InfoModule {
    */
   async getTranscodeList(params: {
     /** 文件ID */
-    fileId: number | string;
+    fileId: number | string
   }): Promise<ApiResponse<GetTranscodeListResponse>> {
-    const fileId = typeof params.fileId === 'string' ? parseInt(params.fileId, 10) : params.fileId;
+    const fileId = typeof params.fileId === 'string' ? parseInt(params.fileId, 10) : params.fileId
 
     return this.httpClient.get<GetTranscodeListResponse>('/api/v1/video/transcode/list', {
-      fileId,
-    });
+      fileId
+    })
   }
 
   /**
@@ -127,13 +130,13 @@ export class InfoModule {
    */
   async getTranscodeRecord(params: {
     /** 文件ID */
-    fileId: number | string;
+    fileId: number | string
   }): Promise<ApiResponse<GetTranscodeRecordResponse>> {
-    const fileId = typeof params.fileId === 'string' ? parseInt(params.fileId, 10) : params.fileId;
+    const fileId = typeof params.fileId === 'string' ? parseInt(params.fileId, 10) : params.fileId
 
     return this.httpClient.post<GetTranscodeRecordResponse>('/api/v1/transcode/video/record', {
-      fileId,
-    });
+      fileId
+    })
   }
 
   /**
@@ -145,16 +148,15 @@ export class InfoModule {
    */
   async getTranscodeResult(params: {
     /** 文件ID */
-    fileId: number | string;
+    fileId: number | string
   }): Promise<ApiResponse<GetTranscodeResultResponse>> {
-    const fileId = typeof params.fileId === 'string' ? parseInt(params.fileId, 10) : params.fileId;
+    const fileId = typeof params.fileId === 'string' ? parseInt(params.fileId, 10) : params.fileId
 
     return this.httpClient.post<GetTranscodeResultResponse>('/api/v1/transcode/video/result', {
-      fileId,
-    });
+      fileId
+    })
   }
 }
 
 // 导出类型
-export * from './types';
-
+export * from './types'

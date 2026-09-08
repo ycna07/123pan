@@ -2,14 +2,14 @@
  * 复制模块
  */
 
-import { HttpClient } from '@123pan/core';
-import type { ApiResponse } from '@123pan/core';
+import { HttpClient } from '@123pan/core'
+import type { ApiResponse } from '@123pan/core'
 import {
   ICreateCopyTaskResponse,
   IGetCopyTaskProcessResponse,
   IGetCopyFailFilesResponse,
-  CopyTaskStatus,
-} from './types';
+  CopyTaskStatus
+} from './types'
 
 export class CopyModule {
   constructor(private httpClient: HttpClient) {}
@@ -24,15 +24,15 @@ export class CopyModule {
    */
   async createCopyTask(params: {
     /** 文件id数组(string 数组)，长度限制：100 */
-    fileIDs: string[];
+    fileIDs: string[]
     /** 要移动到的图床目标文件夹id，移动到根目录时为空 */
-    toParentFileID: string;
+    toParentFileID: string
     /** 复制来源(1=云盘) */
-    sourceType: string;
+    sourceType: string
     /** 业务类型，固定为 1 */
-    type: number;
+    type: number
   }): Promise<ApiResponse<ICreateCopyTaskResponse>> {
-    return this.httpClient.post('/api/v1/oss/source/copy', { ...params, type: 1, sourceType: '1' });
+    return this.httpClient.post('/api/v1/oss/source/copy', { ...params, type: 1, sourceType: '1' })
   }
 
   /**
@@ -41,11 +41,11 @@ export class CopyModule {
    */
   async getCopyTaskProcess(params: {
     /** 复制任务ID */
-    taskID: string;
+    taskID: string
   }): Promise<ApiResponse<IGetCopyTaskProcessResponse>> {
     return this.httpClient.get('/api/v1/oss/source/copy/process', {
-      taskID: params.taskID,
-    });
+      taskID: params.taskID
+    })
   }
 
   /**
@@ -54,21 +54,20 @@ export class CopyModule {
    */
   async getCopyFailFiles(params: {
     /** 复制任务ID */
-    taskID: string;
+    taskID: string
     /** 每页文件数量，最大不超过100 */
-    limit: number;
+    limit: number
     /** 页码数 */
-    page: number;
+    page: number
   }): Promise<ApiResponse<IGetCopyFailFilesResponse>> {
     return this.httpClient.get('/api/v1/oss/source/copy/fail', {
       taskID: params.taskID,
       limit: params.limit,
-      page: params.page,
-    });
+      page: params.page
+    })
   }
 }
 
 // 导出类型
-export * from './types';
-export { CopyTaskStatus } from './types';
-
+export * from './types'
+export { CopyTaskStatus } from './types'

@@ -6,16 +6,16 @@
 
 export function makeJwt(claims: Record<string, unknown>): string {
   const encode = (value: object): string =>
-    Buffer.from(JSON.stringify(value), "utf-8").toString("base64url");
-  return `${encode({ alg: "none", typ: "JWT" })}.${encode(claims)}.signature`;
+    Buffer.from(JSON.stringify(value), 'utf-8').toString('base64url')
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(claims)}.signature`
 }
 
 /** 一小时后过期的 exp（秒） */
 export function futureExp(offsetSeconds = 3600): number {
-  return Math.floor(Date.now() / 1000) + offsetSeconds;
+  return Math.floor(Date.now() / 1000) + offsetSeconds
 }
 
 /** 一小时前过期的 exp（秒） */
 export function pastExp(offsetSeconds = 3600): number {
-  return Math.floor(Date.now() / 1000) - offsetSeconds;
+  return Math.floor(Date.now() / 1000) - offsetSeconds
 }

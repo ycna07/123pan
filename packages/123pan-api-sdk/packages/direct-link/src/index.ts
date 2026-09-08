@@ -3,23 +3,23 @@
  * 注意：此模块的API需要开通开发者权益
  */
 
-import { HttpClient } from '@123pan/core';
-import { IpModule } from './ip';
-import { LoggerModule } from './logger';
-import { SpaceModule } from './space';
+import { HttpClient } from '@123pan/core'
+import { IpModule } from './ip'
+import { LoggerModule } from './logger'
+import { SpaceModule } from './space'
 
 export class DirectLinkModule {
   /** IP黑名单管理子模块 */
-  public readonly ip: IpModule;
+  public readonly ip: IpModule
   /** 日志管理子模块 */
-  public readonly logger: LoggerModule;
+  public readonly logger: LoggerModule
   /** 空间管理子模块 */
-  public readonly space: SpaceModule;
+  public readonly space: SpaceModule
 
   constructor(private httpClient: HttpClient) {
-    this.ip = new IpModule(this.httpClient);
-    this.logger = new LoggerModule(this.httpClient);
-    this.space = new SpaceModule(this.httpClient);
+    this.ip = new IpModule(this.httpClient)
+    this.logger = new LoggerModule(this.httpClient)
+    this.space = new SpaceModule(this.httpClient)
   }
 }
 
@@ -28,8 +28,8 @@ export type {
   ToggleIpBlacklistParams,
   ToggleIpBlacklistResponse,
   UpdateIpBlacklistParams,
-  GetIpBlacklistResponse,
-} from './ip/types';
+  GetIpBlacklistResponse
+} from './ip/types'
 
 // 导出日志模块类型
 export type {
@@ -38,8 +38,8 @@ export type {
   OfflineLogItem,
   GetTrafficLogsParams,
   GetTrafficLogsResponse,
-  TrafficLogItem,
-} from './logger/types';
+  TrafficLogItem
+} from './logger/types'
 
 // 导出空间模块类型
 export type {
@@ -48,5 +48,5 @@ export type {
   DisableDirectLinkParams,
   DisableDirectLinkResponse,
   GetDirectLinkUrlParams,
-  GetDirectLinkUrlResponse,
-} from './space/types';
+  GetDirectLinkUrlResponse
+} from './space/types'

@@ -2,88 +2,88 @@
  * 视频转码模块
  */
 
-import { HttpClient } from '@123pan/core';
-import type { ApiResponse } from '@123pan/core';
-import type { GetFileListResponse } from '@123pan/file';
-import { UploadModule } from './upload';
-import { InfoModule } from './info';
+import { HttpClient } from '@123pan/core'
+import type { ApiResponse } from '@123pan/core'
+import type { GetFileListResponse } from '@123pan/file'
+import { UploadModule } from './upload'
+import { InfoModule } from './info'
 
 /** 视频转码操作参数 */
 export interface TranscodeVideoParams {
   /** 文件ID */
-  fileId: number | string;
+  fileId: number | string
   /** 编码方式，如 "H.264" */
-  codecName: string;
+  codecName: string
   /** 视频时长，单位：秒 */
-  videoTime: number;
+  videoTime: number
   /** 要转码的分辨率，多个之间以逗号分割，如 "2160P,1080P,720P"（注意P是大写） */
-  resolutions: string | string[];
+  resolutions: string | string[]
 }
 
 /** 视频转码操作响应 */
 export interface TranscodeVideoResponse {
   /** 转码结果消息，如 "2160P&1080P&720P已成功开始转码，请在转码结果中查询" */
-  message: string;
+  message: string
 }
 
 /** 删除转码视频参数 */
 export interface DeleteTranscodeVideoParams {
   /** 文件ID */
-  fileId: number | string;
+  fileId: number | string
   /** 业务类型，固定为 2 */
-  businessType?: 2;
+  businessType?: 2
   /** 删除类型：1-删除原文件，2-删除原文件+转码后的文件 */
-  trashed: 1 | 2;
+  trashed: 1 | 2
 }
 
 /** 下载响应（通用） */
 export interface DownloadResponse {
   /** 下载地址 */
-  downloadUrl: string;
+  downloadUrl: string
   /** 转码空间是否已满 */
-  isFull: boolean;
+  isFull: boolean
 }
 
 /** 下载单个转码文件参数 */
 export interface DownloadTranscodeFileParams {
   /** 文件ID */
-  fileId: number | string;
+  fileId: number | string
   /** 分辨率，如 "1080P", "720P" */
-  resolution: string;
+  resolution: string
   /** 下载类型：1-下载m3u8文件，2-下载ts文件 */
-  type: 1 | 2;
+  type: 1 | 2
   /** ts文件名称（type=2时必填），如 "001" */
-  tsName?: string;
+  tsName?: string
 }
 
 /** 下载全部转码文件参数 */
 export interface DownloadAllTranscodeFilesParams {
   /** 文件ID */
-  fileId: number | string;
+  fileId: number | string
   /** 下载的zip文件名 */
-  zipName: string;
+  zipName: string
 }
 
 /** 下载全部转码文件响应 */
 export interface DownloadAllTranscodeFilesResponse {
   /** 是否正在下载中 */
-  isDownloading: boolean;
+  isDownloading: boolean
   /** 转码空间是否已满 */
-  isFull: boolean;
+  isFull: boolean
   /** 下载地址（下载完成后才有） */
-  downloadUrl: string;
+  downloadUrl: string
 }
 
 /**
  * @deprecated 视频转码能力属于 Open API；普通用户 API 没有对应接口。
  */
 export class VideoModule {
-  public readonly upload: UploadModule;
-  public readonly info: InfoModule;
+  public readonly upload: UploadModule
+  public readonly info: InfoModule
 
   constructor(private httpClient: HttpClient) {
-    this.upload = new UploadModule(this.httpClient);
-    this.info = new InfoModule(this.httpClient);
+    this.upload = new UploadModule(this.httpClient)
+    this.info = new InfoModule(this.httpClient)
   }
 
   /**
@@ -97,39 +97,41 @@ export class VideoModule {
    * @returns 转码结果消息
    */
   async transcodeVideo(params: TranscodeVideoParams): Promise<ApiResponse<string>> {
-    const { fileId, codecName, videoTime, resolutions } = params;
-    
+    const { fileId, codecName, videoTime, resolutions } = params
+
     // 处理 fileId
-    const fileIdNum = typeof fileId === 'string' ? parseInt(fileId, 10) : fileId;
-    
+    const fileIdNum = typeof fileId === 'string' ? parseInt(fileId, 10) : fileId
+
     // 处理 resolutions：支持数组或字符串
-    let resolutionsStr: string;
+    let resolutionsStr: string
     if (Array.isArray(resolutions)) {
-      resolutionsStr = resolutions.join(',');
+      resolutionsStr = resolutions.join(',')
     } else {
-      resolutionsStr = resolutions;
+      resolutionsStr = resolutions
     }
-    
+
     // 验证分辨率格式（P必须大写）
-    const resolutionList = resolutionsStr.split(',').map(r => r.trim());
-    const invalidResolutions = resolutionList.filter(r => {
+    const resolutionList = resolutionsStr.split(',').map((r) => r.trim())
+    const invalidResolutions = resolutionList.filter((r) => {
       // 检查是否包含小写p
-      return r.includes('p') && !r.includes('P');
-    });
-    
+      return r.includes('p') && !r.includes('P')
+    })
+
     if (invalidResolutions.length > 0) {
-      throw new Error(`分辨率格式错误：${invalidResolutions.join(', ')}。注意：P必须大写，如 "2160P,1080P,720P"`);
+      throw new Error(
+        `分辨率格式错误：${invalidResolutions.join(', ')}。注意：P必须大写，如 "2160P,1080P,720P"`
+      )
     }
-    
+
     const requestBody = {
       fileId: fileIdNum,
       codecName,
       videoTime,
-      resolutions: resolutionsStr,
-    };
-    
+      resolutions: resolutionsStr
+    }
+
     // API返回的data就是字符串消息
-    return this.httpClient.post<string>('/api/v1/transcode/video', requestBody);
+    return this.httpClient.post<string>('/api/v1/transcode/video', requestBody)
   }
 
   /**
@@ -142,24 +144,24 @@ export class VideoModule {
    * @returns 删除结果消息
    */
   async deleteTranscodeVideo(params: DeleteTranscodeVideoParams): Promise<ApiResponse<string>> {
-    const { fileId, businessType = 2, trashed } = params;
-    
+    const { fileId, businessType = 2, trashed } = params
+
     // 处理 fileId
-    const fileIdNum = typeof fileId === 'string' ? parseInt(fileId, 10) : fileId;
-    
+    const fileIdNum = typeof fileId === 'string' ? parseInt(fileId, 10) : fileId
+
     // 验证 trashed 参数
     if (trashed !== 1 && trashed !== 2) {
-      throw new Error('trashed 参数必须为 1（删除原文件）或 2（删除原文件+转码后的文件）');
+      throw new Error('trashed 参数必须为 1（删除原文件）或 2（删除原文件+转码后的文件）')
     }
-    
+
     const requestBody = {
       fileId: fileIdNum,
       businessType, // 固定为 2
-      trashed,
-    };
-    
+      trashed
+    }
+
     // API返回的data是字符串消息："删除文件成功"
-    return this.httpClient.post<string>('/api/v1/transcode/delete', requestBody);
+    return this.httpClient.post<string>('/api/v1/transcode/delete', requestBody)
   }
 
   /**
@@ -171,13 +173,13 @@ export class VideoModule {
    */
   async downloadOriginalFile(params: {
     /** 文件ID */
-    fileId: number | string;
+    fileId: number | string
   }): Promise<ApiResponse<DownloadResponse>> {
-    const fileId = typeof params.fileId === 'string' ? parseInt(params.fileId, 10) : params.fileId;
+    const fileId = typeof params.fileId === 'string' ? parseInt(params.fileId, 10) : params.fileId
 
     return this.httpClient.post<DownloadResponse>('/api/v1/transcode/file/download', {
-      fileId,
-    });
+      fileId
+    })
   }
 
   /**
@@ -190,34 +192,36 @@ export class VideoModule {
    * @param params.tsName ts文件名称（type=2时必填），如 "001"
    * @returns 下载地址和空间状态
    */
-  async downloadTranscodeFile(params: DownloadTranscodeFileParams): Promise<ApiResponse<DownloadResponse>> {
-    const { fileId, resolution, type, tsName } = params;
+  async downloadTranscodeFile(
+    params: DownloadTranscodeFileParams
+  ): Promise<ApiResponse<DownloadResponse>> {
+    const { fileId, resolution, type, tsName } = params
 
     // 处理 fileId
-    const fileIdNum = typeof fileId === 'string' ? parseInt(fileId, 10) : fileId;
+    const fileIdNum = typeof fileId === 'string' ? parseInt(fileId, 10) : fileId
 
     // 验证 type 参数
     if (type !== 1 && type !== 2) {
-      throw new Error('type 参数必须为 1（下载m3u8文件）或 2（下载ts文件）');
+      throw new Error('type 参数必须为 1（下载m3u8文件）或 2（下载ts文件）')
     }
 
     // 验证 tsName（type=2时必填）
     if (type === 2 && !tsName) {
-      throw new Error('下载 ts 文件时，tsName 参数必填');
+      throw new Error('下载 ts 文件时，tsName 参数必填')
     }
 
     const requestBody: any = {
       fileId: fileIdNum,
       resolution,
-      type,
-    };
+      type
+    }
 
     // type=2时才添加 tsName
     if (type === 2 && tsName) {
-      requestBody.tsName = tsName;
+      requestBody.tsName = tsName
     }
 
-    return this.httpClient.post<DownloadResponse>('/api/v1/transcode/m3u8_ts/download', requestBody);
+    return this.httpClient.post<DownloadResponse>('/api/v1/transcode/m3u8_ts/download', requestBody)
   }
 
   /**
@@ -229,16 +233,21 @@ export class VideoModule {
    * @param params.zipName 下载的zip文件名
    * @returns 下载状态和地址
    */
-  async downloadAllTranscodeFiles(params: DownloadAllTranscodeFilesParams): Promise<ApiResponse<DownloadAllTranscodeFilesResponse>> {
-    const { fileId, zipName } = params;
+  async downloadAllTranscodeFiles(
+    params: DownloadAllTranscodeFilesParams
+  ): Promise<ApiResponse<DownloadAllTranscodeFilesResponse>> {
+    const { fileId, zipName } = params
 
     // 处理 fileId
-    const fileIdNum = typeof fileId === 'string' ? parseInt(fileId, 10) : fileId;
+    const fileIdNum = typeof fileId === 'string' ? parseInt(fileId, 10) : fileId
 
-    return this.httpClient.post<DownloadAllTranscodeFilesResponse>('/api/v1/transcode/file/download/all', {
-      fileId: fileIdNum,
-      zipName,
-    });
+    return this.httpClient.post<DownloadAllTranscodeFilesResponse>(
+      '/api/v1/transcode/file/download/all',
+      {
+        fileId: fileIdNum,
+        zipName
+      }
+    )
   }
 
   /**
@@ -254,48 +263,48 @@ export class VideoModule {
    */
   async downloadAllTranscodeFilesWithPolling(params: {
     /** 文件ID */
-    fileId: number | string;
+    fileId: number | string
     /** 下载的zip文件名 */
-    zipName: string;
+    zipName: string
     /** 轮询间隔（毫秒），默认10秒 */
-    pollingInterval?: number;
+    pollingInterval?: number
     /** 最大轮询次数，默认30次 */
-    maxAttempts?: number;
+    maxAttempts?: number
     /** 轮询回调函数 */
-    onPolling?: (attempt: number, isDownloading: boolean, isFull: boolean) => void;
+    onPolling?: (attempt: number, isDownloading: boolean, isFull: boolean) => void
   }): Promise<ApiResponse<DownloadAllTranscodeFilesResponse>> {
-    const { fileId, zipName, pollingInterval = 10000, maxAttempts = 30, onPolling } = params;
+    const { fileId, zipName, pollingInterval = 10000, maxAttempts = 30, onPolling } = params
 
-    let attempt = 0;
+    let attempt = 0
 
     while (attempt < maxAttempts) {
-      attempt++;
+      attempt++
 
-      const result = await this.downloadAllTranscodeFiles({ fileId, zipName });
+      const result = await this.downloadAllTranscodeFiles({ fileId, zipName })
 
       // 触发回调
       if (onPolling && result.data) {
-        onPolling(attempt, result.data.isDownloading, result.data.isFull);
+        onPolling(attempt, result.data.isDownloading, result.data.isFull)
       }
 
       // 如果请求失败，直接返回错误
       if (result.code !== 0) {
-        return result;
+        return result
       }
 
       // 如果转码空间已满，直接返回
       if (result.data && result.data.isFull) {
-        return result;
+        return result
       }
 
       // 如果已经下载完成（不在下载中 且 有下载地址），返回结果
       if (result.data && !result.data.isDownloading && result.data.downloadUrl) {
-        return result;
+        return result
       }
 
       // 如果还在下载中且未达到最大次数，等待后继续轮询
       if (attempt < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, pollingInterval));
+        await new Promise((resolve) => setTimeout(resolve, pollingInterval))
       }
     }
 
@@ -303,8 +312,8 @@ export class VideoModule {
     return {
       code: -1,
       message: `轮询超时：已尝试 ${maxAttempts} 次，仍未准备好下载链接`,
-      data: null as any,
-    };
+      data: null as any
+    }
   }
 
   /**
@@ -320,36 +329,36 @@ export class VideoModule {
    */
   async getFileList(params: {
     /** 文件夹ID，根目录传0 */
-    parentFileId: number;
+    parentFileId: number
     /** 每页文件数量，最大不超过100 */
-    limit: number;
+    limit: number
     /** 搜索关键字（选填，将无视文件夹ID参数，进行全局查找） */
-    searchData?: string;
+    searchData?: string
     /** 搜索模式（选填）：0-全文模糊搜索，1-精准搜索 */
-    searchMode?: 0 | 1;
+    searchMode?: 0 | 1
     /** 翻页查询时需要填写（选填） */
-    lastFileId?: number;
+    lastFileId?: number
   }): Promise<ApiResponse<GetFileListResponse>> {
-    const { parentFileId, limit, searchData, searchMode, lastFileId } = params;
+    const { parentFileId, limit, searchData, searchMode, lastFileId } = params
 
     // 构建查询参数
     const queryParams: Record<string, any> = {
       parentFileId,
       limit: Math.min(limit, 100), // 限制最大100
-      businessType: 2, // 固定为2，代表转码空间
-    };
+      businessType: 2 // 固定为2，代表转码空间
+    }
 
     if (searchData !== undefined) {
-      queryParams.searchData = searchData;
+      queryParams.searchData = searchData
     }
     if (searchMode !== undefined) {
-      queryParams.searchMode = searchMode;
+      queryParams.searchMode = searchMode
     }
     if (lastFileId !== undefined) {
-      queryParams.lastFileId = lastFileId;
+      queryParams.lastFileId = lastFileId
     }
 
-    return this.httpClient.get<GetFileListResponse>('/api/v2/file/list', queryParams);
+    return this.httpClient.get<GetFileListResponse>('/api/v2/file/list', queryParams)
   }
 }
 
@@ -357,8 +366,8 @@ export class VideoModule {
 export type {
   UploadFromCloudDiskFileItem,
   UploadFromCloudDiskParams,
-  UploadFromCloudDiskResponse,
-} from './upload/types';
+  UploadFromCloudDiskResponse
+} from './upload/types'
 
 // 导出信息模块类型
 export type {
@@ -370,8 +379,8 @@ export type {
   GetTranscodeRecordResponse,
   TranscodeFileItem,
   TranscodeResultItem,
-  GetTranscodeResultResponse,
-} from './info/types';
+  GetTranscodeResultResponse
+} from './info/types'
 
 // 从 file 模块导出文件列表相关类型（避免重复定义）
-export type { GetFileListResponse, FileListItem } from '@123pan/file';
+export type { GetFileListResponse, FileListItem } from '@123pan/file'

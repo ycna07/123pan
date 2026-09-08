@@ -2,7 +2,7 @@
  * 文件处理工具函数（Node.js环境专用）
  */
 
-import crypto from 'crypto';
+import crypto from 'crypto'
 
 /**
  * 计算文件的 MD5 哈希值（Node.js环境）
@@ -10,20 +10,22 @@ import crypto from 'crypto';
  * @returns MD5 哈希值的十六进制字符串
  */
 export async function calculateMD5(file: ArrayBuffer | Buffer | Uint8Array): Promise<string> {
-  let buffer: Buffer;
+  let buffer: Buffer
 
   // 转换为 Buffer
   if (Buffer.isBuffer(file)) {
-    buffer = file;
+    buffer = file
   } else if (file instanceof Uint8Array) {
-    buffer = Buffer.from(file);
+    buffer = Buffer.from(file)
   } else if (file instanceof ArrayBuffer) {
-    buffer = Buffer.from(file);
+    buffer = Buffer.from(file)
   } else {
-    throw new Error('Unsupported file type for MD5 calculation. Expected Buffer, Uint8Array, or ArrayBuffer.');
+    throw new Error(
+      'Unsupported file type for MD5 calculation. Expected Buffer, Uint8Array, or ArrayBuffer.'
+    )
   }
 
-  return crypto.createHash('md5').update(buffer).digest('hex');
+  return crypto.createHash('md5').update(buffer).digest('hex')
 }
 
 /**
@@ -32,39 +34,36 @@ export async function calculateMD5(file: ArrayBuffer | Buffer | Uint8Array): Pro
  * @param sliceSize 分片大小（字节）
  * @returns 分片数组，每个分片都是 Buffer
  */
-export function sliceFile(
-  file: ArrayBuffer | Buffer | Uint8Array,
-  sliceSize: number
-): Buffer[] {
-  const slices: Buffer[] = [];
+export function sliceFile(file: ArrayBuffer | Buffer | Uint8Array, sliceSize: number): Buffer[] {
+  const slices: Buffer[] = []
 
   if (Buffer.isBuffer(file)) {
-    let offset = 0;
+    let offset = 0
     while (offset < file.length) {
-      const end = Math.min(offset + sliceSize, file.length);
-      slices.push(file.subarray(offset, end));
-      offset = end;
+      const end = Math.min(offset + sliceSize, file.length)
+      slices.push(file.subarray(offset, end))
+      offset = end
     }
   } else if (file instanceof Uint8Array) {
-    let offset = 0;
+    let offset = 0
     while (offset < file.length) {
-      const end = Math.min(offset + sliceSize, file.length);
-      slices.push(Buffer.from(file.subarray(offset, end)));
-      offset = end;
+      const end = Math.min(offset + sliceSize, file.length)
+      slices.push(Buffer.from(file.subarray(offset, end)))
+      offset = end
     }
   } else if (file instanceof ArrayBuffer) {
-    const buffer = Buffer.from(file);
-    let offset = 0;
+    const buffer = Buffer.from(file)
+    let offset = 0
     while (offset < buffer.length) {
-      const end = Math.min(offset + sliceSize, buffer.length);
-      slices.push(buffer.subarray(offset, end));
-      offset = end;
+      const end = Math.min(offset + sliceSize, buffer.length)
+      slices.push(buffer.subarray(offset, end))
+      offset = end
     }
   } else {
-    throw new Error('Unsupported file type. Expected Buffer, Uint8Array, or ArrayBuffer.');
+    throw new Error('Unsupported file type. Expected Buffer, Uint8Array, or ArrayBuffer.')
   }
 
-  return slices;
+  return slices
 }
 
 /**
@@ -74,12 +73,12 @@ export function sliceFile(
  */
 export function getFileSize(file: ArrayBuffer | Buffer | Uint8Array): number {
   if (Buffer.isBuffer(file) || file instanceof Uint8Array) {
-    return file.length;
+    return file.length
   }
   if (file instanceof ArrayBuffer) {
-    return file.byteLength;
+    return file.byteLength
   }
-  return 0;
+  return 0
 }
 
 /**
@@ -88,6 +87,5 @@ export function getFileSize(file: ArrayBuffer | Buffer | Uint8Array): number {
  * @returns MD5 哈希值的十六进制字符串
  */
 export async function calculateSliceMD5(slice: ArrayBuffer | Buffer | Uint8Array): Promise<string> {
-  return calculateMD5(slice);
+  return calculateMD5(slice)
 }
-
