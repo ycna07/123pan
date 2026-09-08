@@ -5,6 +5,7 @@ import type { AuthStatus, DriveItem, StorageUsage } from '@123pan/shared-types'
 import { formatSize } from '@renderer/utils/format'
 import FileTable from '@renderer/components/drive/FileTable.vue'
 import DownloadManager from '@renderer/components/drive/DownloadManager.vue'
+import TrashView from '@renderer/components/drive/TrashView.vue'
 
 const toast = useToast()
 
@@ -16,7 +17,16 @@ const search = ref('')
 const items = ref<DriveItem[]>([])
 const loading = ref(false)
 const usage = ref<StorageUsage | null>(null)
-const activeView = ref<'files' | 'downloads'>('files')
+const activeView = ref<'files' | 'downloads' | 'trash'>('files')
+
+const viewTitle = computed(
+  () =>
+    ({
+      files: '全部文件',
+      downloads: '下载管理',
+      trash: '回收站'
+    })[activeView.value]
+)
 /** 进行中的下载（任务 id -> 状态），驱动顶部细进度条 */
 const activeDownloads = ref(new Map<string, { name: string; percent: number }>())
 
@@ -75,7 +85,10 @@ const navItems = computed(() => [
   {
     label: '回收站',
     icon: 'i-lucide-trash-2',
-    onSelect: () => toast.add({ title: '回收站（开发中）', color: 'info' })
+    active: activeView.value === 'trash',
+    onSelect: () => {
+      activeView.value = 'trash'
+    }
   }
 ])
 
@@ -248,6 +261,20 @@ function handleSelectionChange(ids: string[]): void {
 function handleClipboardOperation(op: 'copy' | 'cut', ids: string[]): void {
   selectedIds.value = ids
   copySelected(op === 'cut')
+}
+
+async function handleDelete(item: DriveItem): Promise<void> {
+  try {
+    await window.api.deleteFiles([item.id])
+    items.value = items.value.filter((entry) => entry.id !== item.id)
+    toast.add({
+      title: `「${item.name}」已移入回收站`,
+      description: '可在侧边栏「回收站」中恢复或彻底删除',
+      icon: 'i-lucide-trash-2'
+    })
+  } catch (error) {
+    showError(error, '删除文件失败')
+  }
 }
 
 function handlePaste(targetFolderId: string): void {
@@ -455,9 +482,7 @@ onBeforeUnmount(() => {
 
       <main class="flex min-w-0 flex-1 flex-col">
         <header class="flex items-center gap-3 border-b border-default px-6 py-3">
-          <h1 class="text-base font-semibold text-highlighted">
-            {{ activeView === 'files' ? '全部文件' : '下载管理' }}
-          </h1>
+            <h1 class="text-base font-semibold text-highlighted">{{ viewTitle }}</h1>
           <template v-if="activeView === 'files'">
             <UInput
               v-model="search"
@@ -561,7 +586,11 @@ onBeforeUnmount(() => {
             @paste="handlePaste"
             @move="handleMove"
             @upload-files="handleUploadDropped"
+            @delete="handleDelete"
           />
+        </div>
+        <div v-else-if="activeView === 'trash'" class="min-h-0 flex-1 overflow-y-auto p-4">
+          <TrashView />
         </div>
         <div v-else class="min-h-0 flex-1 overflow-y-auto p-4">
           <DownloadManager />

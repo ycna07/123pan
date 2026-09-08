@@ -21,6 +21,7 @@ const emit = defineEmits<{
   paste: [targetFolderId: string]
   clipboardOperation: [op: 'copy' | 'cut', ids: string[]]
   uploadFiles: [paths: string[]]
+  delete: [item: DriveItem]
 }>()
 
 const cutSet = computed(() =>
@@ -394,12 +395,7 @@ function crumbHandlers(crumb: { id: string | null }): CrumbEventHandlers {
       label: '删除',
       icon: 'i-lucide-trash-2',
       color: 'error',
-      onSelect: () =>
-        toast.add({
-          title: `「${item.name}」删除功能开发中`,
-          color: 'warning',
-          icon: 'i-lucide-trash-2'
-        })
+      onSelect: () => emit('delete', item)
     }
   )
   return [actions]

@@ -22,6 +22,10 @@ declare global {
       getAuthStatus(): Promise<AuthStatus>
       logout(): Promise<void>
       listFiles(folderId: string | null): Promise<DriveItem[]>
+      deleteFiles(fileIds: string[]): Promise<string[]>
+      listTrashFiles(): Promise<DriveItem[]>
+      restoreFiles(fileIds: string[]): Promise<string[]>
+      deleteFilesForever(fileIds: string[]): Promise<string[]>
       moveFiles(fileIds: string[], targetFolderId: string | null): Promise<string[]>
       copyFiles(fileIds: string[], targetFolderId: string | null): Promise<string[]>
       getUsage(): Promise<StorageUsage>

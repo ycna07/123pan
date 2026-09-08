@@ -12,6 +12,7 @@ import type {
   StorageUsage,
   UploadProgress
 } from '@123pan/shared-types'
+import type { FileListItem } from '@sharef/123pan-sdk'
 import { getSettings } from './settings'
 import { getSdk } from './auth'
 
@@ -87,23 +88,45 @@ function toDriveItem(raw: {
   }
 }
 
-async function fetchFolderItems(parentFileId: number): Promise<DriveItem[]> {
-  const sdk = getSdk()
-  if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
-
+async function fetchAllPages(
+  fetchPage: (
+    lastFileId?: number
+  ) => Promise<{ data: { lastFileId: number; fileList: FileListItem[] } }>
+): Promise<DriveItem[]> {
   const items: DriveItem[] = []
   let lastFileId: number | undefined
   for (let page = 0; page < MAX_PAGES; page++) {
-    const response = await sdk.file.getFileList({
-      parentFileId,
-      limit: PAGE_SIZE,
-      ...(lastFileId !== undefined && { lastFileId })
-    })
+    const response = await fetchPage(lastFileId)
     items.push(...response.data.fileList.map(toDriveItem))
     lastFileId = response.data.lastFileId
     if (lastFileId === -1) break
   }
   return items
+}
+
+async function fetchFolderItems(parentFileId: number): Promise<DriveItem[]> {
+  const sdk = getSdk()
+  if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+
+  return fetchAllPages((lastFileId) =>
+    sdk.file.getFileList({
+      parentFileId,
+      limit: PAGE_SIZE,
+      ...(lastFileId !== undefined && { lastFileId })
+    })
+  )
+}
+
+async function fetchTrashItems(): Promise<DriveItem[]> {
+  const sdk = getSdk()
+  if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+
+  return fetchAllPages((lastFileId) =>
+    sdk.file.getTrashFileList({
+      limit: PAGE_SIZE,
+      ...(lastFileId !== undefined && { lastFileId })
+    })
+  )
 }
 
 function toFolderId(folderId: string | null, label: string): number {
@@ -132,6 +155,49 @@ function registerHandler<T extends unknown[]>(
 export function registerDriveHandlers(): void {
   registerHandler('drive:list', (_event, folderId: string | null) => {
     return fetchFolderItems(toFolderId(folderId, '目录 ID'))
+  })
+
+  registerHandler('drive:trash:list', () => fetchTrashItems())
+
+  registerHandler('drive:trash:restore', async (_event, fileIds: string[]) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    if (!Array.isArray(fileIds) || fileIds.length === 0) {
+      throw new Error('请选择要恢复的文件')
+    }
+    const response = await sdk.file.restoreFiles({ fileIDs: fileIds.map((id) => Number(id)) })
+    if (response.code !== 0) {
+      throw new Error(response.message || '恢复文件失败')
+    }
+    return fileIds.map((id) => String(id))
+  })
+
+  registerHandler('drive:trash:delete', async (_event, fileIds: string[]) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    if (!Array.isArray(fileIds) || fileIds.length === 0) {
+      throw new Error('请选择要彻底删除的文件')
+    }
+    const response = await sdk.file.permanentDeleteFiles({
+      fileIDs: fileIds.map((id) => Number(id))
+    })
+    if (response.code !== 0) {
+      throw new Error(response.message || '彻底删除文件失败')
+    }
+    return fileIds.map((id) => String(id))
+  })
+
+  registerHandler('drive:delete', async (_event, fileIds: string[]) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    if (!Array.isArray(fileIds) || fileIds.length === 0) {
+      throw new Error('请选择要删除的文件')
+    }
+    const response = await sdk.file.deleteFiles({ fileIDs: fileIds.map((id) => Number(id)) })
+    if (response.code !== 0) {
+      throw new Error(response.message || '删除文件失败')
+    }
+    return fileIds.map((id) => String(id))
   })
 
   registerHandler('drive:usage', async (): Promise<StorageUsage> => {

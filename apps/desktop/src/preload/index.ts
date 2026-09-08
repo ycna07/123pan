@@ -22,6 +22,13 @@ const api = {
   logout: (): Promise<void> => ipcRenderer.invoke('auth:logout'),
   listFiles: (folderId: string | null): Promise<DriveItem[]> =>
     ipcRenderer.invoke('drive:list', folderId),
+  deleteFiles: (fileIds: string[]): Promise<string[]> =>
+    ipcRenderer.invoke('drive:delete', fileIds),
+  listTrashFiles: (): Promise<DriveItem[]> => ipcRenderer.invoke('drive:trash:list'),
+  restoreFiles: (fileIds: string[]): Promise<string[]> =>
+    ipcRenderer.invoke('drive:trash:restore', fileIds),
+  deleteFilesForever: (fileIds: string[]): Promise<string[]> =>
+    ipcRenderer.invoke('drive:trash:delete', fileIds),
   moveFiles: (fileIds: string[], targetFolderId: string | null): Promise<string[]> =>
     ipcRenderer.invoke('drive:move', fileIds, targetFolderId),
   copyFiles: (fileIds: string[], targetFolderId: string | null): Promise<string[]> =>

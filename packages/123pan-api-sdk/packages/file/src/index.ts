@@ -417,6 +417,57 @@ export class FileModule {
   }
 
   /**
+   * 获取回收站文件列表
+   * @param params 查询参数
+   * @param params.limit 每页文件数量，最大不超过100
+   * @param params.searchData 搜索关键字（选填，进行全局查找）
+   * @param params.lastFileId 翻页查询时需要填写（选填）
+   * @returns 回收站文件列表（按删除时间倒序）
+   */
+  async getTrashFileList(params: {
+    /** 每页文件数量，最大不超过100 */
+    limit: number
+    /** 搜索关键字（选填，进行全局查找） */
+    searchData?: string
+    /** 翻页查询时需要填写（选填） */
+    lastFileId?: number
+  }): Promise<ApiResponse<GetFileListResponse>> {
+    const { limit, searchData, lastFileId } = params
+
+    const queryParams: Record<string, any> = {
+      driveId: 0,
+      limit: Math.min(limit, 100),
+      orderBy: 'trashed_at',
+      orderDirection: 'desc',
+      Page: 1,
+      parentFileId: 0,
+      trashed: true,
+      event: 'recycleListFile',
+      OnlyLookAbnormalFile: 0
+    }
+
+    if (searchData !== undefined) {
+      queryParams.SearchData = searchData
+    }
+    if (lastFileId !== undefined) {
+      queryParams.Next = lastFileId
+    }
+
+    const result = await this.httpClient.get<{ Next?: number | string; InfoList?: any[] }>(
+      '/api/file/list/new',
+      queryParams
+    )
+
+    return {
+      ...result,
+      data: {
+        lastFileId: toNumber(result.data?.Next, -1),
+        fileList: (result.data?.InfoList || []).map(mapNormalFileItem)
+      }
+    }
+  }
+
+  /**
    * 获取文件详情
    * 支持批量获取多个文件的详情信息
    * @param params 查询参数
@@ -473,6 +524,82 @@ export class FileModule {
     }
 
     return { code: 0, message: 'ok', data: null }
+  }
+
+  /**
+   * 从回收站恢复文件
+   * 将回收站的文件恢复至删除前的位置，单批最多支持100个，超过会自动分批处理
+   * @param params 恢复参数
+   * @param params.fileIDs 文件ID数组
+   * @returns 恢复结果
+   */
+  async restoreFiles(params: { fileIDs: (number | string)[] }): Promise<ApiResponse<null>> {
+    const { fileIDs } = params
+    const BATCH_SIZE = 100
+
+    if (fileIDs.length <= BATCH_SIZE) {
+      return this._restoreBatch(fileIDs)
+    }
+
+    for (let i = 0; i < fileIDs.length; i += BATCH_SIZE) {
+      const result = await this._restoreBatch(fileIDs.slice(i, i + BATCH_SIZE))
+      if (result.code !== 0) {
+        return result
+      }
+    }
+
+    return { code: 0, message: 'ok', data: null }
+  }
+
+  /**
+   * 彻底删除回收站中的文件（不可恢复）
+   * 文件必须已在回收站中，单批最多支持100个，超过会自动分批处理
+   * @param params 删除参数
+   * @param params.fileIDs 文件ID数组
+   * @returns 删除结果
+   */
+  async permanentDeleteFiles(params: { fileIDs: (number | string)[] }): Promise<ApiResponse<null>> {
+    const { fileIDs } = params
+    const BATCH_SIZE = 100
+
+    if (fileIDs.length <= BATCH_SIZE) {
+      return this._permanentDeleteBatch(fileIDs)
+    }
+
+    for (let i = 0; i < fileIDs.length; i += BATCH_SIZE) {
+      const result = await this._permanentDeleteBatch(fileIDs.slice(i, i + BATCH_SIZE))
+      if (result.code !== 0) {
+        return result
+      }
+    }
+
+    return { code: 0, message: 'ok', data: null }
+  }
+
+  /**
+   * 执行一批恢复请求（内部方法）
+   */
+  private async _restoreBatch(fileIDs: (number | string)[]): Promise<ApiResponse<null>> {
+    const fileIDsNum = fileIDs.map((id) => (typeof id === 'string' ? parseInt(id, 10) : id))
+
+    return this.httpClient.post('/api/file/trash', {
+      fileTrashInfoList: fileIDsNum.map((FileId) => ({ FileId })),
+      driveId: 0,
+      event: 'recycleRestore',
+      operation: false
+    })
+  }
+
+  /**
+   * 执行一批彻底删除请求（内部方法）
+   */
+  private async _permanentDeleteBatch(fileIDs: (number | string)[]): Promise<ApiResponse<null>> {
+    const fileIDsNum = fileIDs.map((id) => (typeof id === 'string' ? parseInt(id, 10) : id))
+
+    return this.httpClient.post('/api/file/delete', {
+      fileIdList: fileIDsNum.map((FileId) => ({ FileId })),
+      event: 'recycleDelete'
+    })
   }
 
   /**
