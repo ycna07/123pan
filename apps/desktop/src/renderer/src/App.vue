@@ -500,24 +500,84 @@ onBeforeUnmount(() => {
               :loading="loading"
               @click="refreshLoadedFolders"
             />
-            <UButton
-              icon="i-lucide-folder-plus"
-              size="sm"
-              color="neutral"
-              variant="outline"
-              @click="openNewFolder"
-            >
-              新建文件夹
-            </UButton>
-            <UButton
-              icon="i-lucide-cloud-download"
-              size="sm"
-              color="neutral"
-              variant="outline"
-              @click="openOffline"
-            >
-              离线下载
-            </UButton>
+            <UPopover v-model:open="newFolderOpen" :content="{ align: 'end' }">
+              <UButton
+                icon="i-lucide-folder-plus"
+                size="sm"
+                color="neutral"
+                variant="outline"
+                @click="openNewFolder"
+              >
+                新建文件夹
+              </UButton>
+              <template #content>
+                <div class="flex w-72 flex-col gap-3 p-1">
+                  <p class="text-sm font-medium text-highlighted">新建文件夹</p>
+                  <UInput
+                    v-model="newFolderName"
+                    placeholder="请输入名称"
+                    size="lg"
+                    class="w-full"
+                    autofocus
+                    @keydown.enter="confirmNewFolder"
+                  />
+                  <div class="flex justify-end gap-2">
+                    <UButton color="neutral" variant="ghost" size="sm" @click="newFolderOpen = false">
+                      取消
+                    </UButton>
+                    <UButton
+                      size="sm"
+                      icon="i-lucide-folder-plus"
+                      :loading="creatingFolder"
+                      :disabled="!newFolderName.trim()"
+                      @click="confirmNewFolder"
+                    >
+                      创建
+                    </UButton>
+                  </div>
+                </div>
+              </template>
+            </UPopover>
+            <UPopover v-model:open="offlineOpen" :content="{ align: 'end' }">
+              <UButton
+                icon="i-lucide-cloud-download"
+                size="sm"
+                color="neutral"
+                variant="outline"
+                @click="openOffline"
+              >
+                离线下载
+              </UButton>
+              <template #content>
+                <div class="flex w-96 flex-col gap-3 p-1">
+                  <p class="text-sm font-medium text-highlighted">离线下载</p>
+                  <UInput
+                    v-model="offlineUrl"
+                    placeholder="粘贴下载链接（HTTP/磁力链）"
+                    size="lg"
+                    class="w-full"
+                    @keydown.enter="confirmOffline"
+                  />
+                  <p class="text-xs text-muted">
+                    任务将在 123pan 服务端创建并下载到当前文件夹（{{ currentFolderName }}）。
+                  </p>
+                  <div class="flex justify-end gap-2">
+                    <UButton color="neutral" variant="ghost" size="sm" @click="offlineOpen = false">
+                      取消
+                    </UButton>
+                    <UButton
+                      size="sm"
+                      icon="i-lucide-cloud-download"
+                      :loading="creatingOffline"
+                      :disabled="!offlineUrl.trim()"
+                      @click="confirmOffline"
+                    >
+                      创建任务
+                    </UButton>
+                  </div>
+                </div>
+              </template>
+            </UPopover>
             <UButton icon="i-lucide-upload" size="sm" @click="pickUploads">上传文件</UButton>
             <input
               ref="uploadInput"
@@ -597,75 +657,7 @@ onBeforeUnmount(() => {
         </div>
       </main>
 
-      <UModal v-model:open="newFolderOpen">
-        <UCard>
-          <template #header>
-            <div class="flex items-center gap-2">
-              <UIcon name="i-lucide-folder-plus" class="size-4 text-primary" />
-              <span class="font-medium text-highlighted">新建文件夹</span>
-            </div>
-          </template>
-          <UFormField label="文件夹名称" required>
-            <UInput
-              v-model="newFolderName"
-              placeholder="请输入名称"
-              size="lg"
-              class="w-full"
-              autofocus
-              @keydown.enter="confirmNewFolder"
-            />
-          </UFormField>
-          <template #footer>
-            <div class="flex justify-end gap-2">
-              <UButton color="neutral" variant="ghost" @click="newFolderOpen = false">取消</UButton>
-              <UButton
-                icon="i-lucide-folder-plus"
-                :loading="creatingFolder"
-                :disabled="!newFolderName.trim()"
-                @click="confirmNewFolder"
-              >
-                创建
-              </UButton>
-            </div>
-          </template>
-        </UCard>
-      </UModal>
 
-      <UModal v-model:open="offlineOpen">
-        <UCard>
-          <template #header>
-            <div class="flex items-center gap-2">
-              <UIcon name="i-lucide-cloud-download" class="size-4 text-primary" />
-              <span class="font-medium text-highlighted">离线下载</span>
-            </div>
-          </template>
-          <UFormField label="下载链接（HTTP/磁力链）" required>
-            <UInput
-              v-model="offlineUrl"
-              placeholder="粘贴下载链接"
-              size="lg"
-              class="w-full"
-              @keydown.enter="confirmOffline"
-            />
-          </UFormField>
-          <p class="mt-2 text-xs text-muted">
-            任务将在 123pan 服务端创建并下载到当前文件夹（{{ currentFolderName }}）。
-          </p>
-          <template #footer>
-            <div class="flex justify-end gap-2">
-              <UButton color="neutral" variant="ghost" @click="offlineOpen = false">取消</UButton>
-              <UButton
-                icon="i-lucide-cloud-download"
-                :loading="creatingOffline"
-                :disabled="!offlineUrl.trim()"
-                @click="confirmOffline"
-              >
-                创建任务
-              </UButton>
-            </div>
-          </template>
-        </UCard>
-      </UModal>
     </div>
 
     <div v-else class="flex h-screen items-center justify-center bg-default">
