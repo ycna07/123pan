@@ -500,7 +500,11 @@ onBeforeUnmount(() => {
               :loading="loading"
               @click="refreshLoadedFolders"
             />
-            <UPopover v-model:open="newFolderOpen" :content="{ align: 'end' }">
+            <UPopover
+                v-model:open="newFolderOpen"
+                :content="{ align: 'end' }"
+                :ui="{ content: 'z-50' }"
+              >
               <UButton
                 icon="i-lucide-folder-plus"
                 size="sm"
@@ -538,7 +542,11 @@ onBeforeUnmount(() => {
                 </div>
               </template>
             </UPopover>
-            <UPopover v-model:open="offlineOpen" :content="{ align: 'end' }">
+            <UPopover
+                v-model:open="offlineOpen"
+                :content="{ align: 'end' }"
+                :ui="{ content: 'z-50' }"
+              >
               <UButton
                 icon="i-lucide-cloud-download"
                 size="sm"
