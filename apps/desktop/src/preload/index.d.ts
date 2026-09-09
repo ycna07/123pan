@@ -45,6 +45,10 @@ declare global {
       createOfflineTask(url: string, parentFolderId: string | null): Promise<unknown>
       getPathForFile(file: File): string
       onUploadProgress(callback: (progress: UploadProgress) => void): () => void
+      reuseSave(parentFolderId: string | null, jsonText: string): Promise<unknown>
+      onReuseProgress(
+        callback: (progress: { done: number; total: number; current: string; ok: boolean }) => void
+      ): () => void
       onLoginSuccess(callback: (status: AuthStatus) => void): () => void
       onQrStatus(callback: (state: QrLoginState) => void): () => void
     }

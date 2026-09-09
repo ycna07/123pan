@@ -31,6 +31,7 @@ declare module 'vue' {
     UInput: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_063aac3df06fa62674f33bc199c8c8d4/node_modules/@nuxt/ui/dist/runtime/components/Input.vue')['default']
     UModal: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_063aac3df06fa62674f33bc199c8c8d4/node_modules/@nuxt/ui/dist/runtime/components/Modal.vue')['default']
     UNavigationMenu: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_063aac3df06fa62674f33bc199c8c8d4/node_modules/@nuxt/ui/dist/runtime/components/NavigationMenu.vue')['default']
+    UPopover: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_063aac3df06fa62674f33bc199c8c8d4/node_modules/@nuxt/ui/dist/runtime/components/Popover.vue')['default']
     UProgress: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_063aac3df06fa62674f33bc199c8c8d4/node_modules/@nuxt/ui/dist/runtime/components/Progress.vue')['default']
     USeparator: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_063aac3df06fa62674f33bc199c8c8d4/node_modules/@nuxt/ui/dist/runtime/components/Separator.vue')['default']
     USwitch: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_063aac3df06fa62674f33bc199c8c8d4/node_modules/@nuxt/ui/dist/runtime/components/Switch.vue')['default']

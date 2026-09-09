@@ -417,6 +417,61 @@ export class FileModule {
   }
 
   /**
+   * JSON 秒传：直接提交文件元数据（MD5 etag + 大小 + 文件名）创建文件
+   *
+   * 向 /api/file/upload_request 提交 type:0 请求，若该 etag 命中云端已有文件
+   * （响应 data.Reuse === true）则立即在目标目录生成该文件，无需传输数据。
+   * etag 支持 32 位小写 hex MD5。
+   * @param params 秒传参数
+   * @param params.fileName 文件名
+   * @param params.etag 文件 MD5（32 位 hex）
+   * @param params.size 文件大小（字节）
+   * @param params.parentFileID 目标目录 id，根目录传 0
+   * @param params.duplicate 同名处理策略：1 保留两者（自动加后缀），0 报错
+   * @returns reused=true 表示秒传成功并含 fileId；reused=false 表示云端无此文件（无法秒传）
+   */
+  async reuseUpload(params: {
+    fileName: string
+    etag: string
+    size: number
+    parentFileID?: number
+    duplicate?: number
+  }): Promise<ApiResponse<{ reused: boolean; fileId: number | null }>> {
+    const result = await this.httpClient.post<any>('/api/file/upload_request', {
+      fileName: params.fileName,
+      parentFileId: params.parentFileID ?? 0,
+      etag: params.etag.trim().toLowerCase(),
+      size: params.size,
+      type: 0,
+      duplicate: params.duplicate ?? 1,
+      driveId: 0,
+      NotReuse: false
+    })
+
+    const data: any = result.data ?? {}
+    const reused = data.Reuse === true
+    let fileId: number | null = null
+    if (reused) {
+      const info = data.Info ?? {}
+      for (const key of ['FileID', 'FileId', 'fileId']) {
+        const value = info[key] ?? data[key]
+        if (value !== undefined && value !== null && value !== '') {
+          fileId = Number(value)
+          break
+        }
+      }
+      if (fileId === null) {
+        throw new Error('秒传成功但响应中没有文件 ID')
+      }
+    }
+
+    return {
+      ...result,
+      data: { reused, fileId }
+    }
+  }
+
+  /**
    * 获取回收站文件列表
    * @param params 查询参数
    * @param params.limit 每页文件数量，最大不超过100

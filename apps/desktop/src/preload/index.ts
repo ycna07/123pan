@@ -71,6 +71,15 @@ const api = {
     ipcRenderer.on('drive:upload-progress', listener)
     return () => ipcRenderer.removeListener('drive:upload-progress', listener)
   },
+  reuseSave: (parentFolderId: string | null, jsonText: string): Promise<unknown> =>
+    ipcRenderer.invoke('drive:reuse-save', parentFolderId, jsonText),
+  onReuseProgress: (
+    callback: (progress: { done: number; total: number; current: string; ok: boolean }) => void
+  ): (() => void) => {
+    const listener = (_event: unknown, progress): void => callback(progress)
+    ipcRenderer.on('drive:reuse-progress', listener)
+    return () => ipcRenderer.removeListener('drive:reuse-progress', listener)
+  },
   onLoginSuccess: (callback: (status: AuthStatus) => void): (() => void) => {
     const listener = (_event: unknown, status: AuthStatus): void => callback(status)
     ipcRenderer.on('auth:login-success', listener)

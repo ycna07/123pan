@@ -30,7 +30,12 @@ const viewTitle = computed(
 /** 进行中的下载（任务 id -> 状态），驱动顶部细进度条 */
 const activeDownloads = ref(new Map<string, { name: string; percent: number }>())
 
-function updateDownloadProgress(progress: { id: string; name: string; received: number; total: number }): void {
+function updateDownloadProgress(progress: {
+  id: string
+  name: string
+  received: number
+  total: number
+}): void {
   const percent = progress.total > 0 ? Math.min(100, (progress.received / progress.total) * 100) : 0
   activeDownloads.value.set(progress.id, { name: progress.name, percent })
   if (percent >= 100 || progress.total === 0) {
@@ -42,8 +47,7 @@ function updateDownloadProgress(progress: { id: string; name: string; received: 
 const activeUploads = ref(new Map<string, number>())
 
 function updateUploadProgress(progress: { name: string; received: number; total: number }): void {
-  const percent =
-    progress.total > 0 ? Math.min(100, (progress.received / progress.total) * 100) : 0
+  const percent = progress.total > 0 ? Math.min(100, (progress.received / progress.total) * 100) : 0
   activeUploads.value.set(progress.name, percent)
   if (percent >= 100) {
     setTimeout(() => activeUploads.value.delete(progress.name), 1500)
@@ -388,6 +392,51 @@ async function confirmOffline(): Promise<void> {
   }
 }
 
+const reuseOpen = ref(false)
+const reuseText = ref('')
+const reuseRunning = ref(false)
+const reuseProgress = ref<{ done: number; total: number; current: string; ok: boolean } | null>(
+  null
+)
+let removeReuseProgress: (() => void) | null = null
+
+function openReuse(): void {
+  reuseText.value = ''
+  reuseProgress.value = null
+  reuseOpen.value = true
+}
+
+async function confirmReuse(): Promise<void> {
+  const text = reuseText.value.trim()
+  if (!text || reuseRunning.value) return
+  reuseRunning.value = true
+  reuseProgress.value = null
+  try {
+    const result = (await window.api.reuseSave(currentFolderId.value, text)) as {
+      total: number
+      createdDirs: number
+      savedCount: number
+      failed: Array<{ name: string; error: string }>
+    }
+    reuseOpen.value = false
+    toast.add({
+      title: `秒传完成：成功 ${result.savedCount} / ${result.total}`,
+      description: `新建目录 ${result.createdDirs} 个${
+        result.failed.length
+          ? `；失败 ${result.failed.length} 项（${result.failed[0].name}：${result.failed[0].error}）`
+          : ''
+      }`,
+      color: result.failed.length ? 'warning' : 'success',
+      icon: 'i-lucide-sparkles'
+    })
+    await reloadFolder(currentFolderId.value)
+  } catch (error) {
+    showError(error, '秒传失败')
+  } finally {
+    reuseRunning.value = false
+  }
+}
+
 async function handleCopyLink(item: DriveItem): Promise<void> {
   try {
     await window.api.copyDownloadLink(item.id)
@@ -427,6 +476,9 @@ onMounted(async () => {
   window.addEventListener('keydown', onKeydown)
   const removeDownloadProgress = window.api.onDownloadProgress(updateDownloadProgress)
   const removeUploadProgress = window.api.onUploadProgress(updateUploadProgress)
+  removeReuseProgress = window.api.onReuseProgress((progress) => {
+    reuseProgress.value = progress
+  })
   window.api.onLoginSuccess((status) => {
     applyAuthStatus(status)
     const displayName = status.nickname || status.account || '用户'
@@ -446,6 +498,7 @@ onMounted(async () => {
   onBeforeUnmount(() => {
     removeDownloadProgress()
     removeUploadProgress()
+    removeReuseProgress?.()
   })
 })
 
@@ -482,7 +535,7 @@ onBeforeUnmount(() => {
 
       <main class="flex min-w-0 flex-1 flex-col">
         <header class="flex items-center gap-3 border-b border-default px-6 py-3">
-            <h1 class="text-base font-semibold text-highlighted">{{ viewTitle }}</h1>
+          <h1 class="text-base font-semibold text-highlighted">{{ viewTitle }}</h1>
           <template v-if="activeView === 'files'">
             <UInput
               v-model="search"
@@ -501,10 +554,61 @@ onBeforeUnmount(() => {
               @click="refreshLoadedFolders"
             />
             <UPopover
-                v-model:open="newFolderOpen"
-                :content="{ align: 'end' }"
-                :ui="{ content: 'z-50' }"
+              v-model:open="reuseOpen"
+              :content="{ align: 'end' }"
+              :ui="{ content: 'z-50' }"
+            >
+              <UButton
+                icon="i-lucide-file-json"
+                size="sm"
+                color="neutral"
+                variant="outline"
+                @click="openReuse"
               >
+                JSON 秒传
+              </UButton>
+              <template #content>
+                <div class="flex w-[480px] flex-col gap-3 p-1">
+                  <p class="text-sm font-medium text-highlighted">JSON 秒传</p>
+                  <p class="text-xs text-muted">
+                    粘贴 123FastLink 导出的秒传 JSON，文件将按目录结构创建到当前文件夹 （{{
+                      currentFolderName
+                    }}）。仅需文件元数据（MD5/大小/文件名），命中云端即秒传。
+                  </p>
+                  <UTextarea
+                    v-model="reuseText"
+                    :rows="7"
+                    placeholder='{"files":[{"path":"目录/文件.ext","etag":"...","size":0}],"commonPath":"","usesBase62EtagsInExport":true}'
+                    class="w-full font-mono text-xs"
+                  />
+                  <div v-if="reuseRunning && reuseProgress" class="text-xs text-muted">
+                    进度 {{ reuseProgress.done }}/{{ reuseProgress.total }}：
+                    <span :class="reuseProgress.ok ? 'text-success' : 'text-error'">
+                      {{ reuseProgress.current }}
+                    </span>
+                  </div>
+                  <div class="flex justify-end gap-2">
+                    <UButton color="neutral" variant="ghost" size="sm" @click="reuseOpen = false">
+                      取消
+                    </UButton>
+                    <UButton
+                      size="sm"
+                      icon="i-lucide-sparkles"
+                      :loading="reuseRunning"
+                      :disabled="!reuseText.trim()"
+                      @click="confirmReuse"
+                    >
+                      开始秒传
+                    </UButton>
+                  </div>
+                </div>
+              </template>
+            </UPopover>
+            <UPopover
+              v-model:open="newFolderOpen"
+              :content="{ align: 'end' }"
+              :ui="{ content: 'z-50' }"
+            >
               <UButton
                 icon="i-lucide-folder-plus"
                 size="sm"
@@ -526,7 +630,12 @@ onBeforeUnmount(() => {
                     @keydown.enter="confirmNewFolder"
                   />
                   <div class="flex justify-end gap-2">
-                    <UButton color="neutral" variant="ghost" size="sm" @click="newFolderOpen = false">
+                    <UButton
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      @click="newFolderOpen = false"
+                    >
                       取消
                     </UButton>
                     <UButton
@@ -543,10 +652,10 @@ onBeforeUnmount(() => {
               </template>
             </UPopover>
             <UPopover
-                v-model:open="offlineOpen"
-                :content="{ align: 'end' }"
-                :ui="{ content: 'z-50' }"
-              >
+              v-model:open="offlineOpen"
+              :content="{ align: 'end' }"
+              :ui="{ content: 'z-50' }"
+            >
               <UButton
                 icon="i-lucide-cloud-download"
                 size="sm"
@@ -664,8 +773,6 @@ onBeforeUnmount(() => {
           <DownloadManager />
         </div>
       </main>
-
-
     </div>
 
     <div v-else class="flex h-screen items-center justify-center bg-default">

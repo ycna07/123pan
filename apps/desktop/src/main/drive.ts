@@ -46,6 +46,94 @@ const IMAGE_CATEGORY = 3
 
 const PAGE_SIZE = 100
 const MAX_PAGES = 20
+const REUSE_STEP_DELAY_MS = 150
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** 与 123FastLink 一致的 base62 字符表 */
+const BASE62_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+/** 与 p123client.escape_filename 一致：Windows 非法字符转全角 */
+const FULLWIDTH_OFFSET = 0xfee0
+
+function base62ToHex(b62: string): string {
+  let num = 0
+  for (const ch of b62) {
+    num = num * 62 + BASE62_CHARS.indexOf(ch)
+  }
+  if (num <= 0) return ''
+  return num.toString(16).padStart(32, '0').toLowerCase()
+}
+
+function sanitizeReuseName(name: string): string {
+  let out = ''
+  for (const ch of name) {
+    out += '"\\/:*?|><'.includes(ch) ? String.fromCharCode(ch.charCodeAt(0) + FULLWIDTH_OFFSET) : ch
+  }
+  return out
+}
+
+interface ReusePlanFile {
+  fileName: string
+  etag: string
+  size: number
+  dirParts: string[]
+}
+
+/** 解析 123FastLink 导出的秒传 JSON（支持 base62 etag 与 commonPath 前缀） */
+function parseReuseJson(jsonText: string): { files: ReusePlanFile[]; commonPath: string } {
+  interface ReuseExportFile {
+    etag?: unknown
+    size?: unknown
+    path?: unknown
+  }
+  interface ReuseExport {
+    files?: ReuseExportFile[]
+    commonPath?: unknown
+    usesBase62EtagsInExport?: unknown
+  }
+  let data: ReuseExport
+  try {
+    data = JSON.parse(jsonText) as ReuseExport
+  } catch {
+    throw new Error('粘贴的内容不是合法 JSON')
+  }
+  const files = data?.files
+  if (!Array.isArray(files)) {
+    throw new Error('JSON 中缺少 files 数组（需为 123FastLink 导出格式）')
+  }
+  const commonPath = String(data.commonPath ?? '')
+    .replace(/\\/g, '/')
+    .replace(/^\/+|\/+$/g, '')
+  const usesBase62 = data.usesBase62EtagsInExport === true
+
+  const plan: ReusePlanFile[] = []
+  for (const raw of files) {
+    let etag = String(raw?.etag ?? '')
+    if (!etag) continue
+    if (usesBase62) etag = base62ToHex(etag)
+    if (!/^[0-9a-f]{32}$/.test(etag.toLowerCase())) continue
+    const path = String(raw?.path ?? '').replace(/\\/g, '/')
+    const fileName = sanitizeReuseName(path.split('/').pop() || path)
+    const dirPath = commonPath
+      ? `${commonPath}/${path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : ''}`
+      : path.includes('/')
+        ? path.slice(0, path.lastIndexOf('/'))
+        : ''
+    const dirParts = dirPath
+      .split('/')
+      .map((part) => sanitizeReuseName(part))
+      .filter(Boolean)
+    plan.push({
+      fileName,
+      etag: etag.toLowerCase(),
+      size: Number(raw?.size ?? 0),
+      dirParts
+    })
+  }
+  return { files: plan, commonPath }
+}
 
 function classifyByExtension(name: string): DriveFileType {
   const dot = name.lastIndexOf('.')
@@ -213,56 +301,62 @@ export function registerDriveHandlers(): void {
     }
   })
 
-  registerHandler('drive:move', async (_event, fileIds: string[], targetFolderId: string | null) => {
-    const sdk = getSdk()
-    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
-    if (!Array.isArray(fileIds) || fileIds.length === 0) {
-      throw new Error('请选择要移动的文件')
+  registerHandler(
+    'drive:move',
+    async (_event, fileIds: string[], targetFolderId: string | null) => {
+      const sdk = getSdk()
+      if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+      if (!Array.isArray(fileIds) || fileIds.length === 0) {
+        throw new Error('请选择要移动的文件')
+      }
+      const targetId = toFolderId(targetFolderId, '目标目录 ID')
+      const response = await sdk.file.moveFiles({
+        fileIDs: fileIds.map((id) => Number(id)),
+        toParentFileID: targetId
+      })
+      if (response.code !== 0) {
+        throw new Error(response.message || '移动文件失败')
+      }
+      return fileIds.map((id) => String(id))
     }
-    const targetId = toFolderId(targetFolderId, '目标目录 ID')
-    const response = await sdk.file.moveFiles({
-      fileIDs: fileIds.map((id) => Number(id)),
-      toParentFileID: targetId
-    })
-    if (response.code !== 0) {
-      throw new Error(response.message || '移动文件失败')
-    }
-    return fileIds.map((id) => String(id))
-  })
+  )
 
-  registerHandler('drive:copy', async (_event, fileIds: string[], targetFolderId: string | null) => {
-    const sdk = getSdk()
-    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
-    if (!Array.isArray(fileIds) || fileIds.length === 0) {
-      throw new Error('请选择要复制的文件')
-    }
-    const targetId = toFolderId(targetFolderId, '目标目录 ID')
-    const created = await sdk.file.copyFiles({
-      fileIDs: fileIds.map((id) => Number(id)),
-      toParentFileID: targetId
-    })
-    if (created.code !== 0 || !created.data?.taskId) {
-      throw new Error(created.message || '创建复制任务失败')
-    }
-    // 复制是异步任务，轮询直到完成（status 2 / errorCode 0）
-    const deadline = Date.now() + 15_000
-    for (;;) {
-      await new Promise((resolve) => setTimeout(resolve, 600))
-      const task = await sdk.file.getCopyTask(created.data.taskId)
-      const info = task.data
-      if (task.code !== 0 || !info) {
-        throw new Error(task.message || '查询复制任务失败')
+  registerHandler(
+    'drive:copy',
+    async (_event, fileIds: string[], targetFolderId: string | null) => {
+      const sdk = getSdk()
+      if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+      if (!Array.isArray(fileIds) || fileIds.length === 0) {
+        throw new Error('请选择要复制的文件')
       }
-      if (info.errorCode !== 0) {
-        throw new Error(info.reason || '复制文件失败')
+      const targetId = toFolderId(targetFolderId, '目标目录 ID')
+      const created = await sdk.file.copyFiles({
+        fileIDs: fileIds.map((id) => Number(id)),
+        toParentFileID: targetId
+      })
+      if (created.code !== 0 || !created.data?.taskId) {
+        throw new Error(created.message || '创建复制任务失败')
       }
-      if (info.status === 2) break
-      if (Date.now() > deadline) {
-        throw new Error('复制任务超时，请稍后手动刷新查看结果')
+      // 复制是异步任务，轮询直到完成（status 2 / errorCode 0）
+      const deadline = Date.now() + 15_000
+      for (;;) {
+        await new Promise((resolve) => setTimeout(resolve, 600))
+        const task = await sdk.file.getCopyTask(created.data.taskId)
+        const info = task.data
+        if (task.code !== 0 || !info) {
+          throw new Error(task.message || '查询复制任务失败')
+        }
+        if (info.errorCode !== 0) {
+          throw new Error(info.reason || '复制文件失败')
+        }
+        if (info.status === 2) break
+        if (Date.now() > deadline) {
+          throw new Error('复制任务超时，请稍后手动刷新查看结果')
+        }
       }
+      return fileIds
     }
-    return fileIds
-  })
+  )
 
   registerHandler('drive:download-link', async (_event, fileId: string) => {
     const sdk = getSdk()
@@ -392,6 +486,93 @@ export function registerDriveHandlers(): void {
     }
     return { taskId: task.data.taskId, name: task.data.taskName }
   })
+
+  registerHandler(
+    'drive:reuse-save',
+    async (_event, parentFolderId: string | null, jsonText: string) => {
+      const sdk = getSdk()
+      if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+      const rootId = toFolderId(parentFolderId, '目录 ID')
+      const plan = parseReuseJson(jsonText)
+      if (plan.files.length === 0) throw new Error('JSON 中没有文件条目')
+
+      const dirIds = new Map<string, number>([['', rootId]])
+      let createdDirs = 0
+      let savedCount = 0
+      const failed: Array<{ name: string; error: string }> = []
+      const done = async (current: string, ok: boolean): Promise<void> => {
+        broadcast('drive:reuse-progress', {
+          done: createdDirs + savedCount + failed.length,
+          total: plan.files.length,
+          current,
+          ok
+        })
+      }
+
+      for (const file of plan.files) {
+        try {
+          // 逐级确保目录存在（先查已加载的同名目录，再创建）
+          let parent = rootId
+          let acc = ''
+          for (const part of file.dirParts) {
+            acc = acc ? `${acc}/${part}` : part
+            const cached = dirIds.get(acc)
+            if (cached !== undefined) {
+              parent = cached
+              continue
+            }
+            const listing = await sdk.file.getFileList({ parentFileId: parent, limit: 100 })
+            const existing = listing.data.fileList.find(
+              (item) => item.type === 1 && item.filename === part
+            )
+            let id: number
+            if (existing) {
+              id = existing.fileId
+            } else {
+              const created = await sdk.file.upload.createFolder({
+                name: part,
+                parentID: parent,
+                duplicate: 1
+              })
+              if (created.code !== 0 || !created.data?.dirID) {
+                throw new Error(created.message || `创建目录「${part}」失败`)
+              }
+              id = created.data.dirID
+              createdDirs++
+              await sleep(REUSE_STEP_DELAY_MS)
+            }
+            dirIds.set(acc, id)
+            parent = id
+          }
+
+          const saved = await sdk.file.reuseUpload({
+            fileName: file.fileName,
+            etag: file.etag,
+            size: file.size,
+            parentFileID: parent,
+            duplicate: 1
+          })
+          if (!saved.data.reused) {
+            throw new Error('云端不存在相同文件，无法秒传')
+          }
+          savedCount++
+          await done(file.fileName, true)
+          await sleep(REUSE_STEP_DELAY_MS)
+        } catch (error) {
+          const message = (error as { message?: string }).message || String(error)
+          failed.push({ name: file.fileName, error: message })
+          await done(file.fileName, false)
+        }
+      }
+
+      return {
+        total: plan.files.length,
+        createdDirs,
+        savedCount,
+        failed
+      }
+    }
+  )
 }
 
 interface DownloadTaskInternal extends DownloadTask {

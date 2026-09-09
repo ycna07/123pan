@@ -63,12 +63,14 @@ export class UploadModule {
     name: string
     /** 父目录id，上传到根目录时填写 0 */
     parentID: number
+    /** 同名目录处理策略：1 保留两者（返回新目录id）；0 报错 */
+    duplicate?: number
   }): Promise<ApiResponse<ICreateFolderResponse>> {
     const result = await this.httpClient.post<UploadRequestData>('/api/file/upload_request', {
       fileName: params.name,
       parentFileId: params.parentID,
       driveId: 0,
-      duplicate: 0,
+      duplicate: params.duplicate ?? 0,
       etag: '',
       size: 0,
       type: 1,
