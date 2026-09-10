@@ -21,13 +21,13 @@
 选择你喜欢的包管理器安装 SDK：
 
 ```bash
-pnpm add @sharef/123pan-sdk
+pnpm add @123pan/api-sdk
 ```
 
 ## 初始化 SDK
 
 ```typescript
-import Pan123SDK from '@sharef/123pan-sdk';
+import Pan123SDK from '@123pan/api-sdk';
 
 const sdk = new Pan123SDK({
 });
@@ -173,7 +173,7 @@ async function example() {
 这是一个完整的文件管理示例：
 
 ```typescript
-import Pan123SDK from '@sharef/123pan-sdk';
+import Pan123SDK from '@123pan/api-sdk';
 import * as fs from 'fs';
 
 const sdk = new Pan123SDK({

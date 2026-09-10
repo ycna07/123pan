@@ -13,7 +13,7 @@
 ### 获取文件列表
 
 ```typescript
-import Pan123SDK from '@sharef/123pan-sdk';
+import Pan123SDK from '@123pan/api-sdk';
 
 const sdk = new Pan123SDK({
 });
@@ -421,7 +421,7 @@ if (result.code === 0) {
 ## 完整示例：文件备份工具
 
 ```typescript
-import Pan123SDK from '@sharef/123pan-sdk';
+import Pan123SDK from '@123pan/api-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 

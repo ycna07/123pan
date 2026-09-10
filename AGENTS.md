@@ -23,7 +23,7 @@ Run both before considering work done; `pnpm build` runs typecheck first, so a b
 Workspace members: `apps/*`, `packages/*`, `packages/123pan-api-sdk/packages/*` (SDK inner modules).
 
 - `apps/desktop` — the electron-vite app (`@123pan/desktop`): `src/main` + `src/preload` → `tsconfig.node.json` (plain `tsc`); `src/renderer` → `tsconfig.web.json` (`vue-tsc`; `.vue` files are invisible to plain tsc). Renderer alias `@renderer/*` → `src/renderer/src/*`. electron-builder config + `build/` + `resources/` live here; build output is `apps/desktop/out/` (gitignored).
-- `packages/123pan-api-sdk` — import as `@sharef/123pan-sdk` (`workspace:*` dep of the app); ESM via `dist/index.esm.js`, CJS via `dist/index.cjs`.
+- `packages/123pan-api-sdk` — import as `@123pan/api-sdk` (`workspace:*` dep of the app); ESM via `dist/index.esm.js`, CJS via `dist/index.cjs`.
 - `packages/ui-components` (`@123pan/ui`), `packages/shared-types` (`@123pan/shared-types`), `packages/core-logic` (`@123pan/core-logic`, skeleton) — shared packages export **source files** directly (`exports: "./src/index.ts"`, no build step); the app's vite/vue-tsc consume them as workspace links.
 
 ### Auth flow
@@ -41,9 +41,9 @@ Workspace members: `apps/*`, `packages/*`, `packages/123pan-api-sdk/packages/*` 
 
 ### SDK package (`packages/123pan-api-sdk`)
 
-- Keeps its own toolchain (rolldown build, vitest, eslint 8); root eslint/prettier ignore this subtree — don't run root formatters over it. Tests: `pnpm --filter @sharef/123pan-sdk test`（vitest）；真实接口冒烟用 `P123_LIVE_TEST=1` 门控。
+- Keeps its own toolchain (rolldown build, vitest, eslint 8); root eslint/prettier ignore this subtree — don't run root formatters over it. Tests: `pnpm --filter @123pan/api-sdk test`（vitest）；真实接口冒烟用 `P123_LIVE_TEST=1` 门控。
 - Inner `@123pan/*` modules are declared as `workspace:*` deps of the SDK root.
-- `dist/` is gitignored but required at runtime: electron-vite externalizes main-process deps by default, so the packaged/dev app does a real `require('@sharef/123pan-sdk')`. Run `pnpm build:sdk` after a fresh clone or clean checkout.
+- `dist/` is gitignored but required at runtime: electron-vite externalizes main-process deps by default, so the packaged/dev app does a real `require('@123pan/api-sdk')`. Run `pnpm build:sdk` after a fresh clone or clean checkout.
 - SDK package has `"type": "module"`; build via `rolldown -c`（`rolldown.config.ts`），d.ts 由 `scripts/normalize-dts.mjs` 归位；CJS outputs must keep the `.cjs` extension and stay in sync with the `exports` map, otherwise `require()` silently returns an empty namespace (Node ≥ 22.12 require(esm)).
 
 ## Gotchas

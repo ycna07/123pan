@@ -6,7 +6,7 @@ export default defineConfig({
   
   lang: 'zh-CN',
   
-  // 自定义域名的子路径部署：blog.sharef.top/123pan-api-sdk/
+  // 部署子路径
   base: '/123pan-api-sdk/',
   
   // 忽略死链接检查（本地开发链接和未完成的页面）
@@ -24,8 +24,7 @@ export default defineConfig({
     nav: [
       { text: '指南', link: '/guide/introduction' },
       { text: 'API 参考', link: '/api/' },
-      { text: '示例', link: '/examples/' },
-      { text: 'GitHub', link: 'https://github.com/shijf/123pan-api-sdk' }
+      { text: '示例', link: '/examples/' }
     ],
 
     sidebar: {
@@ -90,22 +89,13 @@ export default defineConfig({
       ]
     },
 
-    socialLinks: [
-      { icon: 'github', link: 'https://github.com/shijf/123pan-api-sdk' }
-    ],
-
     footer: {
-      message: 'Released under the MIT License.',
+      message: 'Released under the GNU GPL v3 License.',
       copyright: 'Copyright © 2025 | 本项目中使用的 123Pan Logo、品牌标识、相关图标及文字等知识产权归 123云盘官方所有，如有侵权请联系删除'
     },
 
     search: {
       provider: 'local'
-    },
-
-    editLink: {
-      pattern: 'https://github.com/shijf/123pan-api-sdk/edit/main/docs/:path',
-      text: '在 GitHub 上编辑此页'
     },
 
     lastUpdated: {

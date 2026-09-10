@@ -9,7 +9,7 @@
     "typecheck": "pnpm -C apps/desktop typecheck",
     "lint": "eslint --cache .",
     "format": "prettier --write .",
-    "build:sdk": "pnpm --filter @sharef/123pan-sdk build",
+    "build:sdk": "pnpm --filter @123pan/api-sdk build",
     "build:unpack": "pnpm -C apps/desktop build:unpack",
     "build:win": "pnpm -C apps/desktop build:win",
     "build:mac": "pnpm -C apps/desktop build:mac",

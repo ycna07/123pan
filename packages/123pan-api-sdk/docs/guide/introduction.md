@@ -160,7 +160,7 @@ await sdk.video.transcodeVideo({
 
 ## 许可证
 
-MIT License - 可自由用于商业和个人项目。
+GNU General Public License v3.0（GPLv3）—— 可自由使用、修改与分发，衍生作品需以相同许可证开源。详见 [LICENSE](../../LICENSE) 与 [NOTICE.md](../../NOTICE.md)。
 
 ## 下一步
 

@@ -4,7 +4,7 @@ import Pan123SDK from '../../index'
 /**
  * 真实接口冒烟测试，默认跳过，避免 CI/离线环境失败：
  *
- * - 二维码流程（无凭据即可）：P123_LIVE_TEST=1 pnpm --filter @sharef/123pan-sdk test:live
+ * - 二维码流程（无凭据即可）：P123_LIVE_TEST=1 pnpm --filter @123pan/api-sdk test:live
  * - 账号密码流程：额外提供 P123_TEST_PASSPORT / P123_TEST_PASSWORD 环境变量
  */
 const qrLive = process.env.P123_LIVE_TEST === '1'

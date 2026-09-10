@@ -1,5 +1,5 @@
 {
-  "name": "@sharef/123pan-sdk",
+  "name": "@123pan/api-sdk",
   "version": "1.0.4",
   "description": "123Pan 普通用户 API Node.js SDK - 提供完整的 TypeScript 类型支持",
   "private": false,
@@ -84,11 +84,7 @@
     "nodejs",
     "123云盘"
   ],
-  "author": {
-    "name": "sharef",
-    "email": "sharef@163.com"
-  },
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "devDependencies": {
     "@types/node": "^20.9.0",
     "@typescript-eslint/eslint-plugin": "^8.69.0",
@@ -119,13 +115,5 @@
   },
   "engines": {
     "node": ">=20.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/shijf/123pan-api-sdk.git"
-  },
-  "bugs": {
-    "url": "https://github.com/shijf/123pan-api-sdk/issues"
-  },
-  "homepage": "https://blog.sharef.top/123pan-api-sdk/"
+  }
 }

@@ -7,7 +7,7 @@
 ### 创建单个离线任务
 
 ```typescript
-import Pan123SDK from '@sharef/123pan-sdk';
+import Pan123SDK from '@123pan/api-sdk';
 
 const sdk = new Pan123SDK({
 });
@@ -382,7 +382,7 @@ async function cleanFailedTasks() {
 ## 完整示例：离线下载管理工具
 
 ```typescript
-import Pan123SDK from '@sharef/123pan-sdk';
+import Pan123SDK from '@123pan/api-sdk';
 import * as fs from 'fs';
 
 class OfflineDownloadManager {

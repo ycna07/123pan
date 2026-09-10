@@ -19,7 +19,7 @@
 ### 基础转码流程
 
 ```typescript
-import Pan123SDK from '@sharef/123pan-sdk';
+import Pan123SDK from '@123pan/api-sdk';
 
 const sdk = new Pan123SDK({
 });
@@ -468,7 +468,7 @@ await batchTranscodeVideos(videoIds);
 ## 完整示例：视频转码工具
 
 ```typescript
-import Pan123SDK from '@sharef/123pan-sdk';
+import Pan123SDK from '@123pan/api-sdk';
 
 class VideoTranscodeTool {
   private sdk: Pan123SDK;

@@ -12,8 +12,7 @@
     "sdk",
     "user"
   ],
-  "author": "Your Name <1582157042@qq.com>",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "publishConfig": {
     "access": "public"
   }

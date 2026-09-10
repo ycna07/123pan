@@ -13,7 +13,7 @@ import type {
   StorageUsage,
   UploadProgress
 } from '@123pan/shared-types'
-import type { FileListItem, Pan123SDK } from '@sharef/123pan-sdk'
+import type { FileListItem, Pan123SDK } from '@123pan/api-sdk'
 import { getSettings } from './settings'
 import { getSdk } from './auth'
 

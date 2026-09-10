@@ -21,7 +21,7 @@
 ### 上传单张图片
 
 ```typescript
-import Pan123SDK from '@sharef/123pan-sdk';
+import Pan123SDK from '@123pan/api-sdk';
 
 const sdk = new Pan123SDK({
 });
@@ -465,7 +465,7 @@ await generateMarkdownLinks(imageIds);
 ## 完整示例：图床工具
 
 ```typescript
-import Pan123SDK from '@sharef/123pan-sdk';
+import Pan123SDK from '@123pan/api-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';

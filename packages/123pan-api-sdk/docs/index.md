@@ -19,13 +19,13 @@
 ### 安装
 
 ```bash
-pnpm add @sharef/123pan-sdk
+pnpm add @123pan/api-sdk
 ```
 
 ### 基础使用
 
 ```typescript
-import Pan123SDK from '@sharef/123pan-sdk';
+import Pan123SDK from '@123pan/api-sdk';
 
 // 初始化 SDK
 const sdk = new Pan123SDK({

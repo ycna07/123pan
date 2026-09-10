@@ -14,7 +14,7 @@
 ### 初始化 SDK
 
 ```typescript
-import Pan123SDK from '@sharef/123pan-sdk';
+import Pan123SDK from '@123pan/api-sdk';
 
 const sdk = new Pan123SDK({
   debug: true,  // 开发环境建议启用

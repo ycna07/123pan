@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
 import { join } from 'path'
 import { readFile, rm, writeFile } from 'fs/promises'
-import { Pan123SDK } from '@sharef/123pan-sdk'
+import { Pan123SDK } from '@123pan/api-sdk'
 import type { AuthStatus, LoginCredentials, QrLoginState } from '@123pan/shared-types'
 
 interface StoredToken {

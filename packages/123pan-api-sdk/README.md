@@ -1,14 +1,11 @@
 # 123Pan API SDK
-fork form https://github.com/Shijf/123pan-api-sdk
 > 123Pan 普通用户 API 的 Node.js SDK，提供完整的 TypeScript 类型支持
 
-[![npm version](https://img.shields.io/npm/v/@sharef/123pan-sdk.svg)](https://www.npmjs.com/package/@sharef/123pan-sdk)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/node/v/@sharef/123pan-sdk.svg)](https://nodejs.org)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 ## 📚 文档
 
-- **完整文档**: [https://blog.sharef.top/123pan-api-sdk/](https://blog.sharef.top/123pan-api-sdk/)
+- **完整文档**: [docs/](./docs/)
 - **API 基础地址**: `https://www.123pan.com/b`
 
 ## ✨ 特性
@@ -24,13 +21,13 @@ fork form https://github.com/Shijf/123pan-api-sdk
 ## 安装
 
 ```bash
-pnpm add @sharef/123pan-sdk
+pnpm add @123pan/api-sdk
 ```
 
 ## 快速开始
 
 ```typescript
-import Pan123SDK from '@sharef/123pan-sdk';
+import Pan123SDK from '@123pan/api-sdk';
 
 // 初始化 SDK
 const sdk = new Pan123SDK({
@@ -146,9 +143,9 @@ await sdk.offline.getDownloadProcess({ taskID: 123 });
 
 ```typescript
 // 只引入需要的模块
-import { HttpClient } from '@sharef/123pan-sdk/core';
-import { FileModule } from '@sharef/123pan-sdk/file';
-import { ImageModule } from '@sharef/123pan-sdk/image';
+import { HttpClient } from '@123pan/api-sdk/core';
+import { FileModule } from '@123pan/api-sdk/file';
+import { ImageModule } from '@123pan/api-sdk/image';
 
 const httpClient = new HttpClient({
   token: 'your-web-token',
@@ -202,8 +199,8 @@ try {
 
 ## 文档
 
-- 📚 [API 参考](https://github.com/shijf/123pan-api-sdk/tree/main/docs/api)
-- 💡 [示例代码](https://github.com/shijf/123pan-api-sdk/tree/main/packages/examples)
+- 📚 [API 参考](./docs/api)
+- 💡 [示例代码](./packages/examples)
 - 🌐 [官方 API 文档](https://123yunpan.yuque.com/org-wiki-123yunpan-muaork/cr6ced)
 
 ## 示例项目
@@ -221,12 +218,12 @@ try {
 
 ## 许可证
 
-[MIT](./LICENSE)
+本项目以 [GNU General Public License v3.0](./LICENSE) 发布。
+
+来源说明与作者信息处理方式见 [NOTICE.md](./NOTICE.md)。
 
 ## 相关链接
 
-- [GitHub 仓库](https://github.com/shijf/123pan-api-sdk)
-- [NPM 包](https://www.npmjs.com/package/@sharef/123pan-sdk)
 - [123Pan 开放平台](https://www.123pan.com/open)
 - [官方 API 文档](https://123yunpan.yuque.com/org-wiki-123yunpan-muaork/cr6ced)
 - [官方网站](https://www.123pan.com)
