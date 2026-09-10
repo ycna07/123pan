@@ -245,3 +245,6 @@ benchmark/
 perf/
 packages/examples/asserts
 packages/examples/demo-files
+# VitePress build cache / output
+**/.vitepress/cache/
+**/.vitepress/dist/
