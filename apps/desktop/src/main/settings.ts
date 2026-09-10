@@ -3,7 +3,16 @@ import { join } from 'node:path'
 import { app, dialog, ipcMain } from 'electron'
 import type { AppSettings } from '@123pan/shared-types'
 
-const DEFAULTS: AppSettings = { downloadDir: null, askWhereToSave: true }
+const DEFAULTS: AppSettings = { downloadDir: null, askWhereToSave: true, downloadThreads: 4 }
+
+const MIN_THREADS = 1
+const MAX_THREADS = 8
+
+function clampThreads(value: unknown): number {
+  const num = Math.round(Number(value))
+  if (!Number.isFinite(num)) return DEFAULTS.downloadThreads
+  return Math.min(MAX_THREADS, Math.max(MIN_THREADS, num))
+}
 
 let settings: AppSettings = { ...DEFAULTS }
 
@@ -16,7 +25,8 @@ export function loadSettings(): void {
     const raw = JSON.parse(readFileSync(settingsPath(), 'utf-8')) as Partial<AppSettings>
     settings = {
       downloadDir: typeof raw.downloadDir === 'string' ? raw.downloadDir : null,
-      askWhereToSave: raw.askWhereToSave !== false
+      askWhereToSave: raw.askWhereToSave !== false,
+      downloadThreads: clampThreads(raw.downloadThreads)
     }
   } catch {
     settings = { ...DEFAULTS }
@@ -28,7 +38,9 @@ export function getSettings(): AppSettings {
 }
 
 export function updateSettings(patch: Partial<AppSettings>): AppSettings {
-  settings = { ...settings, ...patch }
+  const next = { ...settings, ...patch }
+  next.downloadThreads = clampThreads(next.downloadThreads)
+  settings = next
   writeFileSync(settingsPath(), JSON.stringify(settings, null, 2), 'utf-8')
   return { ...settings }
 }

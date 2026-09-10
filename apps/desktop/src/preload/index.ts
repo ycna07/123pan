@@ -52,6 +52,7 @@ const api = {
     ipcRenderer.invoke('settings:choose-download-dir'),
   downloadsList: (): Promise<DownloadTask[]> => ipcRenderer.invoke('drive:downloads:list'),
   cancelDownload: (id: string): Promise<boolean> => ipcRenderer.invoke('drive:download-cancel', id),
+  resumeDownload: (id: string): Promise<unknown> => ipcRenderer.invoke('drive:download-resume', id),
   revealDownload: (id: string): Promise<boolean> =>
     ipcRenderer.invoke('drive:downloads:reveal', id),
   onDownloadUpdated: (callback: (task: DownloadTask) => void): (() => void) => {

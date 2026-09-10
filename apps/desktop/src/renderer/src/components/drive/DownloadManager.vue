@@ -40,8 +40,19 @@ function reveal(task: DownloadTask): void {
 }
 
 function retry(task: DownloadTask): void {
-  void window.api.downloadFile(task.fileId, task.name)
-  toast.add({ title: `「${task.name}」已重新加入队列`, icon: 'i-lucide-download' })
+  void window.api.resumeDownload(task.id)
+  toast.add({
+    title: task.resumable ? `「${task.name}」继续下载` : `「${task.name}」已重新加入队列`,
+    icon: 'i-lucide-download'
+  })
+}
+
+const threadOptions = [1, 2, 3, 4, 6, 8]
+
+async function updateThreads(value: string | number): Promise<void> {
+  const threads = Number(value)
+  settings.value = { ...(settings.value as AppSettings), downloadThreads: threads }
+  await window.api.updateSettings({ downloadThreads: threads })
 }
 
 onMounted(async () => {
@@ -79,6 +90,21 @@ onBeforeUnmount(() => {
           <UButton icon="i-lucide-folder-open" size="sm" variant="outline" @click="chooseDir">
             选择目录
           </UButton>
+        </div>
+        <USeparator />
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-sm font-medium text-highlighted">下载线程数</p>
+            <p class="text-xs text-muted">
+              多连接分段下载的并发数（1-8）；服务器支持 Range 时可断点续传
+            </p>
+          </div>
+          <USelect
+            :model-value="settings.downloadThreads"
+            :items="threadOptions"
+            class="w-20"
+            @update:model-value="updateThreads"
+          />
         </div>
         <USeparator />
         <div class="flex items-center justify-between gap-3">
@@ -173,11 +199,11 @@ onBeforeUnmount(() => {
             <span class="tabular-nums text-xs text-muted">{{ formatSize(task.size) }}</span>
             <UButton
               v-if="task.status === 'failed'"
-              icon="i-lucide-rotate-cw"
+              :icon="task.resumable ? 'i-lucide-play' : 'i-lucide-rotate-cw'"
               size="xs"
               color="neutral"
               variant="ghost"
-              aria-label="重试"
+              :aria-label="task.resumable ? '继续下载' : '重试'"
               @click="retry(task)"
             />
             <UButton
@@ -209,11 +235,11 @@ onBeforeUnmount(() => {
         >
           <span class="min-w-0 truncate text-sm text-muted">{{ task.name }}</span>
           <UButton
-            icon="i-lucide-rotate-cw"
+            :icon="task.resumable ? 'i-lucide-play' : 'i-lucide-rotate-cw'"
             size="xs"
             color="neutral"
             variant="ghost"
-            aria-label="重新下载"
+            :aria-label="task.resumable ? '继续下载' : '重新下载'"
             @click="retry(task)"
           />
         </div>

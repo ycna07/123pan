@@ -1,8 +1,7 @@
-import { createWriteStream, existsSync, unlinkSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { open, readFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { basename, join } from 'node:path'
-import { once } from 'node:events'
+import { basename, dirname, join } from 'node:path'
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import type {
   DriveFileType,
@@ -449,6 +448,22 @@ export function registerDriveHandlers(): void {
     return true
   })
 
+  registerHandler('drive:download-resume', async (_event, id: string) => {
+    const task = downloadTasks.get(id)
+    if (!task) throw new Error('下载任务不存在')
+    if (task.status === 'downloading') return { id: task.id }
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    // 重新获取下载地址（旧地址可能已过期），沿用原目标路径以命中分片状态
+    const info = await sdk.file.getDownloadInfo({ fileId: task.fileId })
+    task.status = 'downloading'
+    delete task.error
+    delete task.finishedAt
+    emitTask(task)
+    void runDownload(task, info.data.downloadUrl)
+    return { id: task.id }
+  })
+
   registerHandler('drive:downloads:reveal', (_event, id: string) => {
     const task = downloadTasks.get(id)
     if (task?.status === 'completed' && existsSync(task.path)) {
@@ -634,13 +649,13 @@ export function registerDriveHandlers(): void {
         }
       }
 
-    if (files.length === 0) {
-      throw new Error(
-        state.skipped > 0
-          ? '所选文件的 MD5 缺失，无法生成秒传 JSON'
-          : '所选内容为空文件夹，没有可导出的文件'
-      )
-    }
+      if (files.length === 0) {
+        throw new Error(
+          state.skipped > 0
+            ? '所选文件的 MD5 缺失，无法生成秒传 JSON'
+            : '所选内容为空文件夹，没有可导出的文件'
+        )
+      }
       files.sort((a, b) => a.path.localeCompare(b.path))
       const json = JSON.stringify(
         { files, commonPath: '', usesBase62EtagsInExport: false },
@@ -676,6 +691,7 @@ function emitTask(task: DownloadTaskInternal): void {
     received: task.received,
     status: task.status,
     ...(task.error && { error: task.error }),
+    ...(task.resumable && { resumable: true }),
     startedAt: task.startedAt,
     ...(task.finishedAt !== undefined && { finishedAt: task.finishedAt })
   }
@@ -712,40 +728,243 @@ function resolveTargetPath(name: string): string {
   return candidate
 }
 
+// ---------- 多线程下载 + 断点续传 ----------
+
+const MIN_CHUNK_SIZE = 1024 * 1024
+const MAX_CHUNK_SIZE = 8 * 1024 * 1024
+const MAX_THREADS = 8
+const MAX_CHUNK_RETRIES = 3
+
+interface DownloadStateFile {
+  /** 文件 id（下载地址每次重新签发，不能用 URL 判断是否为同一文件） */
+  fileId: string
+  size: number
+  chunkSize: number
+  completed: number[]
+}
+
+function partPaths(filePath: string): { part: string; state: string } {
+  return { part: `${filePath}.part`, state: `${filePath}.part.json` }
+}
+
+/** 探测文件大小与 Range 支持（206 + Content-Range） */
+async function probeDownload(url: string): Promise<{ size: number; range: boolean }> {
+  const head = await fetch(url, { method: 'HEAD' })
+  const size = Number(head.headers.get('content-length') ?? 0)
+  if (head.headers.get('accept-ranges') === 'bytes') {
+    return { size, range: true }
+  }
+  const probe = await fetch(url, { headers: { Range: 'bytes=0-0' } })
+  if (probe.status === 206) {
+    const total = Number(
+      /bytes \d+-\d+\/(\d+)/.exec(probe.headers.get('content-range') ?? '')?.[1] ?? 0
+    )
+    return { size: total || size, range: true }
+  }
+  return { size, range: false }
+}
+
+/** 无 Range 支持时单连接顺序下载（不可续传） */
+async function downloadWhole(
+  task: DownloadTaskInternal,
+  url: string,
+  controller: AbortController,
+  part: string,
+  report: () => void
+): Promise<void> {
+  const response = await fetch(url, { signal: controller.signal })
+  if (!response.ok || !response.body) {
+    throw new Error(`下载失败：HTTP ${response.status}`)
+  }
+  if (!task.size) task.size = Number(response.headers.get('content-length') ?? 0)
+  const handle = await open(part, 'w')
+  try {
+    let position = 0
+    for await (const chunk of response.body) {
+      const buffer = Buffer.from(chunk)
+      await handle.write(buffer, 0, buffer.length, position)
+      position += buffer.length
+      task.received = position
+      report()
+    }
+  } finally {
+    await handle.close()
+  }
+}
+
+async function downloadChunk(
+  url: string,
+  handle: Awaited<ReturnType<typeof open>>,
+  start: number,
+  end: number,
+  controller: AbortController
+): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: { Range: `bytes=${start}-${end}` },
+        signal: controller.signal
+      })
+      if (response.status !== 206) {
+        throw new Error(`分片请求失败：HTTP ${response.status}`)
+      }
+      const buffer = Buffer.from(await response.arrayBuffer())
+      if (buffer.length !== end - start + 1) {
+        throw new Error(`分片长度不符（期望 ${end - start + 1}，实际 ${buffer.length}）`)
+      }
+      await handle.write(buffer, 0, buffer.length, start)
+      return
+    } catch (error) {
+      if (controller.signal.aborted) throw error
+      if (attempt >= MAX_CHUNK_RETRIES) throw error
+      await sleep(300 * (attempt + 1))
+    }
+  }
+}
+
+/** 多线程分段下载，支持断点续传（分片状态存于 <file>.part.json） */
+async function downloadSegmented(
+  task: DownloadTaskInternal,
+  url: string,
+  controller: AbortController,
+  part: string,
+  statePath: string,
+  report: () => void
+): Promise<void> {
+  const size = task.size
+  const threads = Math.max(1, Math.min(MAX_THREADS, getSettings().downloadThreads || 4))
+  // 细粒度分片：至少 1MiB、至多 8MiB，分片总数约为线程数的数倍，保证进度与内存占用可控
+  const chunkSize = Math.max(
+    MIN_CHUNK_SIZE,
+    Math.min(MAX_CHUNK_SIZE, Math.ceil(size / (threads * 4)))
+  )
+  const totalChunks = Math.ceil(size / chunkSize)
+
+  const completed = new Set<number>()
+  if (existsSync(statePath) && existsSync(part)) {
+    try {
+      const saved = JSON.parse(readFileSync(statePath, 'utf-8')) as DownloadStateFile
+      if (
+        saved.fileId === task.fileId &&
+        saved.size === size &&
+        saved.chunkSize === chunkSize
+      ) {
+        for (const index of saved.completed) {
+          if (Number.isInteger(index) && index >= 0 && index < totalChunks) completed.add(index)
+        }
+      }
+    } catch {
+      /* 状态文件损坏则重新下载 */
+    }
+  }
+
+  const chunkLength = (index: number): number => Math.min(chunkSize, size - index * chunkSize)
+  task.received = [...completed].reduce((sum, index) => sum + chunkLength(index), 0)
+
+  let handle: Awaited<ReturnType<typeof open>>
+  if (completed.size > 0 && existsSync(part)) {
+    try {
+      handle = await open(part, 'r+')
+    } catch {
+      completed.clear()
+      task.received = 0
+      handle = await open(part, 'w')
+    }
+  } else {
+    handle = await open(part, 'w')
+  }
+
+  const persist = (): void => {
+    writeFileSync(
+      statePath,
+      JSON.stringify({
+        fileId: task.fileId,
+        size,
+        chunkSize,
+        completed: [...completed].sort((a, b) => a - b)
+      })
+    )
+  }
+  if (completed.size > 0) persist()
+
+  const pending = Array.from({ length: totalChunks }, (_, index) => index).filter(
+    (index) => !completed.has(index)
+  )
+  let cursor = 0
+  let sincePersist = 0
+  let lastPersist = Date.now()
+
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const index = pending[cursor++]
+      if (index === undefined) return
+      const start = index * chunkSize
+      const end = start + chunkLength(index) - 1
+      await downloadChunk(url, handle, start, end, controller)
+      completed.add(index)
+      task.received += chunkLength(index)
+      sincePersist++
+      const now = Date.now()
+      if (sincePersist >= 4 || now - lastPersist > 1000) {
+        sincePersist = 0
+        lastPersist = now
+        persist()
+      }
+      report()
+    }
+  }
+
+  try {
+    const concurrency = Math.max(1, Math.min(threads, pending.length))
+    await Promise.all(Array.from({ length: concurrency }, () => worker()))
+  } finally {
+    persist()
+    await handle.close()
+  }
+}
+
 async function runDownload(task: DownloadTaskInternal, url: string): Promise<void> {
   const controller = new AbortController()
   task.controller = controller
+  task.resumable = false
   aborters.set(task.id, controller)
-  let writer: ReturnType<typeof createWriteStream> | null = null
+  const { part, state } = partPaths(task.path)
+  let lastEmit = 0
+  const report = (): void => {
+    const now = Date.now()
+    if (now - lastEmit > 300) {
+      lastEmit = now
+      emitProgress(task)
+      emitTask(task)
+    }
+  }
+
   try {
-    const response = await fetch(url, { signal: controller.signal })
-    if (!response.ok || !response.body) {
-      throw new Error(`下载失败：HTTP ${response.status}`)
+    mkdirSync(dirname(task.path), { recursive: true })
+    const probe = await probeDownload(url)
+    task.size = probe.size
+
+    if (!probe.range || probe.size <= 0) {
+      await downloadWhole(task, url, controller, part, report)
+    } else {
+      await downloadSegmented(task, url, controller, part, state, report)
     }
-    task.size = Number(response.headers.get('content-length') ?? 0)
-    writer = createWriteStream(task.path)
-    let lastEmit = 0
-    for await (const chunk of response.body) {
-      if (!writer.write(chunk)) await once(writer, 'drain')
-      task.received += chunk.length
-      const now = Date.now()
-      if (now - lastEmit > 300) {
-        lastEmit = now
-        emitProgress(task)
-        emitTask(task)
-      }
-    }
-    writer.end()
-    await once(writer, 'finish')
+
+    renameSync(part, task.path)
+    rmSync(state, { force: true })
+    task.received = task.size
     task.status = 'completed'
     task.finishedAt = Date.now()
   } catch (error) {
     task.status = controller.signal.aborted ? 'canceled' : 'failed'
-    task.error = controller.signal.aborted ? undefined : String((error as Error).message || error)
-    writer?.end()
-    if (writer) await once(writer, 'finish')
-    // 取消/失败时清理半成品文件
-    if (existsSync(task.path)) unlinkSync(task.path)
+    if (controller.signal.aborted) {
+      delete task.error
+    } else {
+      task.error = String((error as Error).message || error)
+    }
+    task.resumable = existsSync(state) && existsSync(part)
+    // 无可续传状态时清理半成品
+    if (!task.resumable && existsSync(part)) rmSync(part, { force: true })
   } finally {
     aborters.delete(task.id)
     task.finishedAt = task.finishedAt ?? Date.now()

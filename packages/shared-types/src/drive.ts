@@ -54,6 +54,8 @@ export interface DownloadTask {
   received: number
   status: DownloadTaskStatus
   error?: string
+  /** 存在可续传的分片状态（取消/失败后可继续下载） */
+  resumable?: boolean
   startedAt: number
   finishedAt?: number
 }
@@ -63,4 +65,6 @@ export interface AppSettings {
   downloadDir: string | null
   /** 每次下载询问保存位置 */
   askWhereToSave: boolean
+  /** 下载线程数（并发连接数，1-8） */
+  downloadThreads: number
 }
