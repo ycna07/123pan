@@ -7,6 +7,7 @@ import type {
   DownloadTask,
   LoginCredentials,
   QrLoginState,
+  ReuseExportResult,
   StorageUsage,
   UploadProgress
 } from '@123pan/shared-types'
@@ -46,6 +47,7 @@ declare global {
       getPathForFile(file: File): string
       onUploadProgress(callback: (progress: UploadProgress) => void): () => void
       reuseSave(parentFolderId: string | null, jsonText: string): Promise<unknown>
+      exportReuse(fileIds: string[]): Promise<ReuseExportResult>
       onReuseProgress(
         callback: (progress: { done: number; total: number; current: string; ok: boolean }) => void
       ): () => void

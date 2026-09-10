@@ -36,6 +36,13 @@ export interface UploadProgress {
   total: number
 }
 
+export interface ReuseExportResult {
+  count: number
+  skipped: number
+  bytes: number
+  json: string
+}
+
 export type DownloadTaskStatus = 'downloading' | 'completed' | 'failed' | 'canceled'
 
 export interface DownloadTask {

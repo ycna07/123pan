@@ -9,10 +9,11 @@ import type {
   DriveItem,
   DownloadProgress,
   DownloadTask,
+  ReuseExportResult,
   StorageUsage,
   UploadProgress
 } from '@123pan/shared-types'
-import type { FileListItem } from '@sharef/123pan-sdk'
+import type { FileListItem, Pan123SDK } from '@sharef/123pan-sdk'
 import { getSettings } from './settings'
 import { getSdk } from './auth'
 
@@ -47,6 +48,7 @@ const IMAGE_CATEGORY = 3
 const PAGE_SIZE = 100
 const MAX_PAGES = 20
 const REUSE_STEP_DELAY_MS = 150
+const MAX_EXPORT_FILES = 5000
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -223,6 +225,39 @@ function toFolderId(folderId: string | null, label: string): number {
     throw new Error(`无效的${label}：${String(folderId)}`)
   }
   return id
+}
+
+/** 递归收集目录下的所有文件（含相对路径），列表接口已直接返回 Etag */
+async function collectFolderFiles(
+  sdk: Pan123SDK,
+  dirPath: string,
+  folderId: number,
+  out: Array<{ path: string; etag: string; size: number }>,
+  state: { skipped: number }
+): Promise<void> {
+  let lastFileId: number | undefined
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const listing = await sdk.file.getFileList({
+      parentFileId: folderId,
+      limit: PAGE_SIZE,
+      ...(lastFileId !== undefined && { lastFileId })
+    })
+    for (const item of listing.data.fileList) {
+      const childPath = `${dirPath}/${item.filename}`
+      if (item.type === 1) {
+        await collectFolderFiles(sdk, childPath, item.fileId, out, state)
+      } else if (item.etag) {
+        out.push({ path: childPath, etag: item.etag.toLowerCase(), size: item.size })
+      } else {
+        state.skipped++
+      }
+      if (out.length > MAX_EXPORT_FILES) {
+        throw new Error(`导出文件数超过上限（${MAX_EXPORT_FILES}），请分文件夹导出`)
+      }
+    }
+    lastFileId = listing.data.lastFileId
+    if (lastFileId === -1) break
+  }
 }
 
 /** 统一包装：SDK 抛出的 ApiError 等非 Error 对象跨 IPC 会丢失消息，这里归一为 Error */
@@ -571,6 +606,49 @@ export function registerDriveHandlers(): void {
         savedCount,
         failed
       }
+    }
+  )
+
+  registerHandler(
+    'drive:export-reuse',
+    async (_event, fileIds: string[]): Promise<ReuseExportResult> => {
+      const sdk = getSdk()
+      if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+      if (!Array.isArray(fileIds) || fileIds.length === 0) {
+        throw new Error('请选择要生成秒传 JSON 的文件或文件夹')
+      }
+
+      const files: Array<{ path: string; etag: string; size: number }> = []
+      const state = { skipped: 0 }
+
+      for (const id of fileIds) {
+        const info = await sdk.file.getFileInfos({ fileIds: [Number(id)] })
+        const item = info.data.list[0]
+        if (!item) throw new Error(`未找到文件：${id}`)
+        if (item.type === 1) {
+          await collectFolderFiles(sdk, item.filename, item.fileId, files, state)
+        } else if (item.etag) {
+          files.push({ path: item.filename, etag: item.etag.toLowerCase(), size: item.size })
+        } else {
+          state.skipped++
+        }
+      }
+
+    if (files.length === 0) {
+      throw new Error(
+        state.skipped > 0
+          ? '所选文件的 MD5 缺失，无法生成秒传 JSON'
+          : '所选内容为空文件夹，没有可导出的文件'
+      )
+    }
+      files.sort((a, b) => a.path.localeCompare(b.path))
+      const json = JSON.stringify(
+        { files, commonPath: '', usesBase62EtagsInExport: false },
+        null,
+        1
+      )
+      clipboard.writeText(json)
+      return { count: files.length, skipped: state.skipped, bytes: Buffer.byteLength(json), json }
     }
   )
 }

@@ -22,6 +22,7 @@ const emit = defineEmits<{
   clipboardOperation: [op: 'copy' | 'cut', ids: string[]]
   uploadFiles: [paths: string[]]
   delete: [item: DriveItem]
+  exportReuse: [item: DriveItem]
 }>()
 
 const cutSet = computed(() =>
@@ -340,14 +341,14 @@ function crumbHandlers(crumb: { id: string | null }): CrumbEventHandlers {
   }
 }
 
-  /** 右键菜单剪切/复制的作用范围：已选多项时作用于整组选择，否则只作用于右键项 */
-  function clipboardIdsFor(item: DriveItem): string[] {
-    return rowSelection.value[item.id]
-      ? Object.keys(rowSelection.value).filter((key) => rowSelection.value[key])
-      : [item.id]
-  }
+/** 右键菜单剪切/复制的作用范围：已选多项时作用于整组选择，否则只作用于右键项 */
+function clipboardIdsFor(item: DriveItem): string[] {
+  return rowSelection.value[item.id]
+    ? Object.keys(rowSelection.value).filter((key) => rowSelection.value[key])
+    : [item.id]
+}
 
-  function buildMenuItems(item: DriveItem): DropdownMenuItem[][] {
+function buildMenuItems(item: DriveItem): DropdownMenuItem[][] {
   const actions: DropdownMenuItem[] = []
   if (item.type === 'folder') {
     actions.push({ label: '打开', icon: 'i-lucide-folder-open', onSelect: () => openItem(item) })
@@ -365,6 +366,11 @@ function crumbHandlers(crumb: { id: string | null }): CrumbEventHandlers {
     )
   }
   actions.push(
+    {
+      label: '生成秒传 JSON',
+      icon: 'i-lucide-file-json',
+      onSelect: () => emit('exportReuse', item)
+    },
     {
       label: '剪切',
       icon: 'i-lucide-scissors',

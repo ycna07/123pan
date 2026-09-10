@@ -406,6 +406,32 @@ function openReuse(): void {
   reuseOpen.value = true
 }
 
+async function handleExportReuse(item: DriveItem): Promise<void> {
+  try {
+    if (item.type === 'folder') {
+      toast.add({
+        title: `正在生成「${item.name}」的秒传 JSON…`,
+        description: '目录较大时需要一些时间',
+        color: 'info',
+        icon: 'i-lucide-loader-circle'
+      })
+    }
+    const result = (await window.api.exportReuse([item.id])) as {
+      count: number
+      skipped: number
+    }
+    toast.add({
+      title: `秒传 JSON 已复制（${result.count} 个文件）`,
+      description: `${
+        result.skipped ? `跳过 ${result.skipped} 个缺少 MD5 的条目；` : ''
+      }可粘贴到「JSON 秒传」或分享给他人`,
+      icon: 'i-lucide-file-json'
+    })
+  } catch (error) {
+    showError(error, '生成秒传 JSON 失败')
+  }
+}
+
 async function confirmReuse(): Promise<void> {
   const text = reuseText.value.trim()
   if (!text || reuseRunning.value) return
@@ -764,6 +790,7 @@ onBeforeUnmount(() => {
             @move="handleMove"
             @upload-files="handleUploadDropped"
             @delete="handleDelete"
+            @export-reuse="handleExportReuse"
           />
         </div>
         <div v-else-if="activeView === 'trash'" class="min-h-0 flex-1 overflow-y-auto p-4">

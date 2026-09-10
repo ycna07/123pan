@@ -73,6 +73,8 @@ const api = {
   },
   reuseSave: (parentFolderId: string | null, jsonText: string): Promise<unknown> =>
     ipcRenderer.invoke('drive:reuse-save', parentFolderId, jsonText),
+  exportReuse: (fileIds: string[]): Promise<unknown> =>
+    ipcRenderer.invoke('drive:export-reuse', fileIds),
   onReuseProgress: (
     callback: (progress: { done: number; total: number; current: string; ok: boolean }) => void
   ): (() => void) => {
