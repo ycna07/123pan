@@ -806,7 +806,7 @@ export type {
 } from './upload/types'
 
 // 导出分享模块和类型
-export { ShareModule } from './share'
+export { ShareModule, parseShareLink } from './share'
 export type {
   ShareExpireDays,
   TrafficSwitch,

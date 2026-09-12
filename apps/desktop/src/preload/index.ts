@@ -35,6 +35,18 @@ const api = {
   copyFiles: (fileIds: string[], targetFolderId: string | null): Promise<string[]> =>
     ipcRenderer.invoke('drive:copy', fileIds, targetFolderId),
   getUsage: (): Promise<StorageUsage> => ipcRenderer.invoke('drive:usage'),
+  createShare: (
+    fileIds: string[],
+    name: string,
+    expire: 0 | 1 | 7 | 30,
+    pwd?: string
+  ): Promise<{ url: string; shareKey: string; sharePwd?: string }> =>
+    ipcRenderer.invoke('share:create', fileIds, name, expire, pwd),
+  parseShare: (link: string): Promise<unknown> => ipcRenderer.invoke('share:parse', link),
+  transferShare: (link: string, targetFolderId: string | null): Promise<{ count: number }> =>
+    ipcRenderer.invoke('share:transfer', link, targetFolderId),
+  downloadShared: (link: string, fileId: string, name: string): Promise<unknown> =>
+    ipcRenderer.invoke('share:download', link, fileId, name),
   getDownloadLink: (fileId: string): Promise<{ url: string }> =>
     ipcRenderer.invoke('drive:download-link', fileId),
   downloadFile: (fileId: string, name: string, savePath?: string): Promise<unknown> =>

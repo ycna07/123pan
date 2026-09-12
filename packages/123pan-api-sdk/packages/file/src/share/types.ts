@@ -72,3 +72,46 @@ export interface CreatePaidShareResponse {
   /** 分享码，需要拼接到 https://www.123pan.com/ps/ 后面访问 */
   shareKey: string
 }
+
+/** 分享中的文件条目 */
+export interface ShareFileItem {
+  fileId: number
+  filename: string
+  /** 0-文件 1-文件夹 */
+  type: number
+  size: number
+  etag: string
+  s3KeyFlag?: string
+  storageNode?: string
+  parentFileId: number
+  updateAt?: string
+}
+
+/** 获取分享文件列表参数 */
+export interface GetShareFilesParams {
+  /** 分享码 */
+  shareKey: string
+  /** 提取码（不区分大小写） */
+  sharePwd?: string
+  /** 父目录 id（分享内的目录），默认 0 */
+  parentFileId?: number
+  /** 页码，默认 1 */
+  page?: number
+  /** 分页大小，最多 100 */
+  limit?: number
+}
+
+/** 获取分享文件列表响应 */
+export interface GetShareFilesResponse {
+  lastFileId: number
+  fileList: ShareFileItem[]
+}
+
+/** 转存分享参数 */
+export interface TransferShareParams {
+  shareKey: string
+  sharePwd?: string
+  files: ShareFileItem[]
+  /** 转存到的目标目录 id（自己的网盘），根目录为 0 */
+  targetParentId: number
+}

@@ -23,6 +23,7 @@ const emit = defineEmits<{
   uploadFiles: [paths: string[]]
   delete: [item: DriveItem]
   exportReuse: [item: DriveItem]
+  share: [item: DriveItem]
 }>()
 
 const cutSet = computed(() =>
@@ -382,10 +383,9 @@ function buildMenuItems(item: DriveItem): DropdownMenuItem[][] {
       onSelect: () => emit('clipboardOperation', 'copy', clipboardIdsFor(item))
     },
     {
-      label: '分享',
+      label: '创建分享',
       icon: 'i-lucide-link-2',
-      onSelect: () =>
-        toast.add({ title: `「${item.name}」分享功能开发中`, icon: 'i-lucide-link-2' })
+      onSelect: () => emit('share', item)
     },
     {
       label: '重命名',

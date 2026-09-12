@@ -13,7 +13,7 @@ import type {
   UploadProgress,
   UploadTask
 } from '@123pan/shared-types'
-import { calculateFileMD5, getFilePathSize } from '@123pan/api-sdk'
+import { calculateFileMD5, getFilePathSize, parseShareLink } from '@123pan/api-sdk'
 import type { FileListItem, IUploadSession, Pan123SDK } from '@123pan/api-sdk'
 import { getSettings } from './settings'
 import { getSdk } from './auth'
@@ -153,7 +153,7 @@ function toDriveItem(raw: {
   filename: string
   type: number
   size: number
-  category: number
+  category?: number
   parentFileId: number
   updateAt?: string
 }): DriveItem {
@@ -407,39 +407,109 @@ export function registerDriveHandlers(): void {
       const sdk = getSdk()
       if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
       const info = await sdk.file.getDownloadInfo({ fileId })
-      const url = info.data.downloadUrl
-      const name = basename(suggestedName)
-
-      const settings = getSettings()
-      let filePath = savePath
-      if (!filePath) {
-        if (settings.askWhereToSave) {
-          const choice = await dialog.showSaveDialog({
-            defaultPath: settings.downloadDir ? join(settings.downloadDir, name) : name
-          })
-          if (choice.canceled || !choice.filePath) return { canceled: true }
-          filePath = choice.filePath
-        } else {
-          filePath = resolveTargetPath(name)
-        }
-      }
-
-      const task: DownloadTask = {
-        id: randomUUID(),
-        fileId,
-        name,
-        path: filePath,
-        size: 0,
-        received: 0,
-        status: 'downloading',
-        startedAt: Date.now()
-      }
-      downloadTasks.set(task.id, task)
-      emitTask(task)
-      void runDownload(task, url)
-      return { canceled: false, id: task.id, path: filePath }
+      return startDownload(fileId, suggestedName, info.data.downloadUrl, savePath)
     }
   )
+
+  // ---- 分享：创建 / 解析 / 转存 / 下载 ----
+
+  registerHandler(
+    'share:create',
+    async (
+      _event,
+      fileIds: string[],
+      shareName: string,
+      shareExpire: 0 | 1 | 7 | 30,
+      sharePwd?: string
+    ) => {
+      const sdk = getSdk()
+      if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+      if (!Array.isArray(fileIds) || fileIds.length === 0) throw new Error('请选择要分享的文件')
+      const name = (shareName || '分享').slice(0, 30)
+      const created = await sdk.file.share.createShare({
+        shareName: name,
+        shareExpire,
+        fileIDList: fileIds,
+        ...(sharePwd ? { sharePwd } : {})
+      })
+      if (created.code !== 0 || !created.data?.shareKey) {
+        throw new Error(created.message || '创建分享失败')
+      }
+      const { shareKey } = created.data
+      const url = `https://www.123pan.com/s/${shareKey}${sharePwd ? `?pwd=${sharePwd}` : ''}`
+      clipboard.writeText(url)
+      return { url, shareKey, ...(sharePwd ? { sharePwd } : {}) }
+    }
+  )
+
+  registerHandler('share:parse', async (_event, link: string) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    const parsed = parseShareLink(link)
+    const result = await sdk.file.share.getShareFiles({
+      shareKey: parsed.shareKey,
+      ...(parsed.sharePwd ? { sharePwd: parsed.sharePwd } : {})
+    })
+    if (result.code !== 0) throw new Error(result.message || '解析分享失败')
+    return {
+      shareKey: parsed.shareKey,
+      ...(parsed.sharePwd ? { sharePwd: parsed.sharePwd } : {}),
+      items: result.data.fileList.map((item) =>
+        toDriveItem({
+          fileId: item.fileId,
+          filename: item.filename,
+          type: item.type,
+          size: item.size,
+          parentFileId: item.parentFileId,
+          ...(item.updateAt ? { updateAt: item.updateAt } : {})
+        })
+      )
+    }
+  })
+
+  registerHandler(
+    'share:transfer',
+    async (_event, link: string, targetFolderId: string | null) => {
+      const sdk = getSdk()
+      if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+      const parsed = parseShareLink(link)
+      const target = toFolderId(targetFolderId, '目标目录 ID')
+      const result = await sdk.file.share.getShareFiles({
+        shareKey: parsed.shareKey,
+        ...(parsed.sharePwd ? { sharePwd: parsed.sharePwd } : {})
+      })
+      if (result.code !== 0) throw new Error(result.message || '解析分享失败')
+      if (result.data.fileList.length === 0) throw new Error('分享中没有可转存的文件')
+      const transferred = await sdk.file.share.transferShare({
+        shareKey: parsed.shareKey,
+        ...(parsed.sharePwd ? { sharePwd: parsed.sharePwd } : {}),
+        files: result.data.fileList,
+        targetParentId: target
+      })
+      if (transferred.code !== 0) {
+        throw new Error(transferred.message || '转存失败')
+      }
+      return { count: result.data.fileList.length }
+    }
+  )
+
+  registerHandler('share:download', async (_event, link: string, fileId: string, name: string) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    const parsed = parseShareLink(link)
+    const result = await sdk.file.share.getShareFiles({
+      shareKey: parsed.shareKey,
+      ...(parsed.sharePwd ? { sharePwd: parsed.sharePwd } : {})
+    })
+    const file = result.data.fileList.find((item) => String(item.fileId) === String(fileId))
+    if (!file) throw new Error('分享中未找到该文件')
+    const info = await sdk.file.share.getShareDownloadInfo({
+      shareKey: parsed.shareKey,
+      ...(parsed.sharePwd ? { sharePwd: parsed.sharePwd } : {}),
+      file
+    })
+    return startDownload(String(file.fileId), name || file.filename, info.data.downloadUrl)
+  })
 
   registerHandler('drive:downloads:list', () =>
     [...downloadTasks.values()].sort((a, b) => b.startedAt - a.startedAt)
@@ -759,6 +829,49 @@ function resolveTargetPath(name: string): string {
     candidate = join(dir, `${base}(${index++})${ext}`)
   }
   return candidate
+}
+
+interface DownloadStartResult {
+  canceled: boolean
+  id?: string
+  path?: string
+}
+
+/** 解析保存路径并启动一个下载任务（普通下载与分享下载共用） */
+async function startDownload(
+  fileId: string,
+  suggestedName: string,
+  url: string,
+  savePath?: string
+): Promise<DownloadStartResult> {
+  const name = basename(suggestedName)
+  const settings = getSettings()
+  let filePath = savePath
+  if (!filePath) {
+    if (settings.askWhereToSave) {
+      const choice = await dialog.showSaveDialog({
+        defaultPath: settings.downloadDir ? join(settings.downloadDir, name) : name
+      })
+      if (choice.canceled || !choice.filePath) return { canceled: true }
+      filePath = choice.filePath
+    } else {
+      filePath = resolveTargetPath(name)
+    }
+  }
+  const task: DownloadTask = {
+    id: randomUUID(),
+    fileId,
+    name,
+    path: filePath,
+    size: 0,
+    received: 0,
+    status: 'downloading',
+    startedAt: Date.now()
+  }
+  downloadTasks.set(task.id, task)
+  emitTask(task)
+  void runDownload(task, url)
+  return { canceled: false, id: task.id, path: filePath }
 }
 
 // ---------- 多线程下载 + 断点续传 ----------
