@@ -205,8 +205,6 @@ importers:
 
   packages/123pan-api-sdk/packages/video: {}
 
-  packages/core-logic: {}
-
   packages/shared-types: {}
 
   packages/ui-components:

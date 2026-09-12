@@ -24,7 +24,7 @@ Workspace members: `apps/*`, `packages/*`, `packages/123pan-api-sdk/packages/*` 
 
 - `apps/desktop` — the electron-vite app (`@123pan/desktop`): `src/main` + `src/preload` → `tsconfig.node.json` (plain `tsc`); `src/renderer` → `tsconfig.web.json` (`vue-tsc`; `.vue` files are invisible to plain tsc). Renderer alias `@renderer/*` → `src/renderer/src/*`. electron-builder config + `build/` + `resources/` live here; build output is `apps/desktop/out/` (gitignored).
 - `packages/123pan-api-sdk` — import as `@123pan/api-sdk` (`workspace:*` dep of the app); ESM via `dist/index.esm.js`, CJS via `dist/index.cjs`.
-- `packages/ui-components` (`@123pan/ui`), `packages/shared-types` (`@123pan/shared-types`), `packages/core-logic` (`@123pan/core-logic`, skeleton) — shared packages export **source files** directly (`exports: "./src/index.ts"`, no build step); the app's vite/vue-tsc consume them as workspace links.
+- `packages/ui-components` (`@123pan/ui`), `packages/shared-types` (`@123pan/shared-types`) — shared packages export **source files** directly (`exports: "./src/index.ts"`, no build step); the app's vite/vue-tsc consume them as workspace links.
 
 ### Auth flow
 
