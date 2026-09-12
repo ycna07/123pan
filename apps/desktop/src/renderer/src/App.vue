@@ -9,6 +9,16 @@ import TrashView from '@renderer/components/drive/TrashView.vue'
 
 const toast = useToast()
 
+const COPY_FEEDBACK_DURATION = 1500
+function notifyCopied(title: string, options: { icon?: string; description?: string } = {}): void {
+  toast.add({
+    title,
+    icon: options.icon ?? 'i-lucide-copy',
+    ...(options.description ? { description: options.description } : {}),
+    duration: COPY_FEEDBACK_DURATION
+  })
+}
+
 const authed = ref<boolean | null>(null)
 const account = ref('')
 const nickname = ref('')
@@ -455,7 +465,7 @@ async function confirmShare(): Promise<void> {
 async function copyShareResult(): Promise<void> {
   if (!shareResult.value) return
   await window.api.copyText(shareResult.value.url)
-  toast.add({ title: '链接已复制', icon: 'i-lucide-copy' })
+  notifyCopied('链接已复制')
 }
 
 function closeShareDialog(): void {
@@ -551,7 +561,7 @@ async function copyParsedShareLink(): Promise<void> {
   const link = openShareLink.value.trim()
   if (!link) return
   await window.api.copyText(link)
-  toast.add({ title: '分享链接已复制', icon: 'i-lucide-copy' })
+  notifyCopied('分享链接已复制')
 }
 
 async function transferParsedShare(fileIds?: string[]): Promise<void> {
@@ -619,12 +629,11 @@ async function handleExportReuse(item: DriveItem): Promise<void> {
       count: number
       skipped: number
     }
-    toast.add({
-      title: `秒传 JSON 已复制（${result.count} 个文件）`,
+    notifyCopied(`秒传 JSON 已复制（${result.count} 个文件）`, {
+      icon: 'i-lucide-file-json',
       description: `${
         result.skipped ? `跳过 ${result.skipped} 个缺少 MD5 的条目；` : ''
-      }可粘贴到「JSON 秒传」或分享给他人`,
-      icon: 'i-lucide-file-json'
+      }可粘贴到「JSON 秒传」或分享给他人`
     })
   } catch (error) {
     showError(error, '生成秒传 JSON 失败')
@@ -665,10 +674,7 @@ async function confirmReuse(): Promise<void> {
 async function handleCopyLink(item: DriveItem): Promise<void> {
   try {
     await window.api.copyDownloadLink(item.id)
-    toast.add({
-      title: `「${item.name}」直链已复制到剪贴板`,
-      icon: 'i-lucide-link'
-    })
+    notifyCopied(`「${item.name}」直链已复制到剪贴板`, { icon: 'i-lucide-link' })
   } catch (error) {
     showError(error, '获取下载直链失败')
   }
