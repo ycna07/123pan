@@ -442,13 +442,15 @@ export function registerDriveHandlers(): void {
     }
   )
 
-  registerHandler('share:parse', async (_event, link: string) => {
+  registerHandler('share:parse', async (_event, link: string, parentFolderId?: string | null) => {
     const sdk = getSdk()
     if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
     const parsed = parseShareLink(link)
+    const parentFileId = parentFolderId ? Number(parentFolderId) : 0
     const result = await sdk.file.share.getShareFiles({
       shareKey: parsed.shareKey,
-      ...(parsed.sharePwd ? { sharePwd: parsed.sharePwd } : {})
+      ...(parsed.sharePwd ? { sharePwd: parsed.sharePwd } : {}),
+      parentFileId: Number.isInteger(parentFileId) && parentFileId > 0 ? parentFileId : 0
     })
     if (result.code !== 0) throw new Error(result.message || '解析分享失败')
     return {
@@ -469,27 +471,40 @@ export function registerDriveHandlers(): void {
 
   registerHandler(
     'share:transfer',
-    async (_event, link: string, targetFolderId: string | null) => {
+    async (
+      _event,
+      link: string,
+      targetFolderId: string | null,
+      parentFolderId?: string | null,
+      fileIds?: string[]
+    ) => {
       const sdk = getSdk()
       if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
       const parsed = parseShareLink(link)
       const target = toFolderId(targetFolderId, '目标目录 ID')
+      const parentFileId = parentFolderId ? Number(parentFolderId) : 0
       const result = await sdk.file.share.getShareFiles({
         shareKey: parsed.shareKey,
-        ...(parsed.sharePwd ? { sharePwd: parsed.sharePwd } : {})
+        ...(parsed.sharePwd ? { sharePwd: parsed.sharePwd } : {}),
+        parentFileId: Number.isInteger(parentFileId) && parentFileId > 0 ? parentFileId : 0
       })
       if (result.code !== 0) throw new Error(result.message || '解析分享失败')
-      if (result.data.fileList.length === 0) throw new Error('分享中没有可转存的文件')
+      const wanted = new Set((fileIds ?? []).map((id) => String(id)))
+      const files =
+        wanted.size > 0
+          ? result.data.fileList.filter((file) => wanted.has(String(file.fileId)))
+          : result.data.fileList
+      if (files.length === 0) throw new Error('请选择要转存的文件')
       const transferred = await sdk.file.share.transferShare({
         shareKey: parsed.shareKey,
         ...(parsed.sharePwd ? { sharePwd: parsed.sharePwd } : {}),
-        files: result.data.fileList,
+        files,
         targetParentId: target
       })
       if (transferred.code !== 0) {
         throw new Error(transferred.message || '转存失败')
       }
-      return { count: result.data.fileList.length }
+      return { count: files.length }
     }
   )
 

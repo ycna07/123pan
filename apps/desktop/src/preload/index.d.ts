@@ -37,12 +37,21 @@ declare global {
         expire: 0 | 1 | 7 | 30,
         pwd?: string
       ): Promise<{ url: string; shareKey: string; sharePwd?: string }>
-      parseShare(link: string): Promise<{
+      copyText(text: string): Promise<boolean>
+      parseShare(
+        link: string,
+        parentFolderId?: string | null
+      ): Promise<{
         shareKey: string
         sharePwd?: string
         items: DriveItem[]
       }>
-      transferShare(link: string, targetFolderId: string | null): Promise<{ count: number }>
+      transferShare(
+        link: string,
+        targetFolderId: string | null,
+        parentFolderId?: string | null,
+        fileIds?: string[]
+      ): Promise<{ count: number }>
       downloadShared(link: string, fileId: string, name: string): Promise<unknown>
       getDownloadLink(fileId: string): Promise<{ url: string }>
       downloadFile(fileId: string, name: string, savePath?: string): Promise<unknown>

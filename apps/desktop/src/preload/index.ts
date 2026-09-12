@@ -42,9 +42,16 @@ const api = {
     pwd?: string
   ): Promise<{ url: string; shareKey: string; sharePwd?: string }> =>
     ipcRenderer.invoke('share:create', fileIds, name, expire, pwd),
-  parseShare: (link: string): Promise<unknown> => ipcRenderer.invoke('share:parse', link),
-  transferShare: (link: string, targetFolderId: string | null): Promise<{ count: number }> =>
-    ipcRenderer.invoke('share:transfer', link, targetFolderId),
+  copyText: (text: string): Promise<boolean> => ipcRenderer.invoke('clipboard:write', text),
+  parseShare: (link: string, parentFolderId?: string | null): Promise<unknown> =>
+    ipcRenderer.invoke('share:parse', link, parentFolderId),
+  transferShare: (
+    link: string,
+    targetFolderId: string | null,
+    parentFolderId?: string | null,
+    fileIds?: string[]
+  ): Promise<{ count: number }> =>
+    ipcRenderer.invoke('share:transfer', link, targetFolderId, parentFolderId, fileIds),
   downloadShared: (link: string, fileId: string, name: string): Promise<unknown> =>
     ipcRenderer.invoke('share:download', link, fileId, name),
   getDownloadLink: (fileId: string): Promise<{ url: string }> =>
@@ -68,8 +75,7 @@ const api = {
   resumeDownload: (id: string): Promise<unknown> => ipcRenderer.invoke('drive:download-resume', id),
   revealDownload: (id: string): Promise<boolean> =>
     ipcRenderer.invoke('drive:downloads:reveal', id),
-  removeDownload: (id: string): Promise<boolean> =>
-    ipcRenderer.invoke('drive:download-remove', id),
+  removeDownload: (id: string): Promise<boolean> => ipcRenderer.invoke('drive:download-remove', id),
   removeUpload: (id: string): Promise<boolean> => ipcRenderer.invoke('drive:upload-remove', id),
   onDownloadUpdated: (callback: (task: DownloadTask) => void): (() => void) => {
     const listener = (_event: unknown, task: DownloadTask): void => callback(task)

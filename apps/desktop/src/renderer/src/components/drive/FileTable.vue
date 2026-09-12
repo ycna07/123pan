@@ -23,7 +23,7 @@ const emit = defineEmits<{
   uploadFiles: [paths: string[]]
   delete: [item: DriveItem]
   exportReuse: [item: DriveItem]
-  share: [item: DriveItem]
+  share: [items: DriveItem[]]
 }>()
 
 const cutSet = computed(() =>
@@ -342,6 +342,13 @@ function crumbHandlers(crumb: { id: string | null }): CrumbEventHandlers {
   }
 }
 
+/** 分享作用范围：已选多项时分享整组选择，否则只分享该项 */
+function selectedItemsFor(item: DriveItem): DriveItem[] {
+  if (!rowSelection.value[item.id]) return [item]
+  const ids = Object.keys(rowSelection.value).filter((key) => rowSelection.value[key])
+  return props.items.filter((entry) => ids.includes(entry.id))
+}
+
 /** 右键菜单剪切/复制的作用范围：已选多项时作用于整组选择，否则只作用于右键项 */
 function clipboardIdsFor(item: DriveItem): string[] {
   return rowSelection.value[item.id]
@@ -385,7 +392,7 @@ function buildMenuItems(item: DriveItem): DropdownMenuItem[][] {
     {
       label: '创建分享',
       icon: 'i-lucide-link-2',
-      onSelect: () => emit('share', item)
+      onSelect: () => emit('share', selectedItemsFor(item))
     },
     {
       label: '重命名',
