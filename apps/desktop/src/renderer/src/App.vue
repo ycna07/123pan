@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useToast } from '@nuxt/ui/composables'
+import type { DropdownMenuItem } from '@nuxt/ui'
 import type { AuthStatus, DriveItem, StorageUsage } from '@123pan/shared-types'
 import { formatSize } from '@renderer/utils/format'
 import { useAppColorMode } from '@renderer/utils/theme'
@@ -10,7 +11,7 @@ import TrashView from '@renderer/components/drive/TrashView.vue'
 
 const toast = useToast()
 
-const { isDark, toggle: toggleColorMode } = useAppColorMode()
+const { isDark, preference, setMode: setColorMode, toggle: toggleColorMode } = useAppColorMode()
 
 const COPY_FEEDBACK_DURATION = 1500
 function notifyCopied(title: string, options: { icon?: string; description?: string } = {}): void {
@@ -109,7 +110,31 @@ const navItems = computed(() => [
   }
 ])
 
-const userMenuItems = [
+const userMenuItems = computed<DropdownMenuItem[]>(() => [
+  {
+    label: '外观',
+    icon: 'i-lucide-palette',
+    children: [
+      {
+        label: '浅色',
+        type: 'checkbox',
+        checked: preference.value === 'light',
+        onSelect: () => setColorMode('light')
+      },
+      {
+        label: '深色',
+        type: 'checkbox',
+        checked: preference.value === 'dark',
+        onSelect: () => setColorMode('dark')
+      },
+      {
+        label: '跟随系统',
+        type: 'checkbox',
+        checked: preference.value === 'auto',
+        onSelect: () => setColorMode('auto')
+      }
+    ]
+  },
   {
     label: '退出登录',
     icon: 'i-lucide-log-out',
@@ -124,7 +149,7 @@ const userMenuItems = [
       authed.value = false
     }
   }
-]
+])
 
 function applyAuthStatus(status: AuthStatus): void {
   account.value = status.account ?? ''
