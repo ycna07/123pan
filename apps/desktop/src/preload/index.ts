@@ -56,6 +56,9 @@ const api = {
   resumeDownload: (id: string): Promise<unknown> => ipcRenderer.invoke('drive:download-resume', id),
   revealDownload: (id: string): Promise<boolean> =>
     ipcRenderer.invoke('drive:downloads:reveal', id),
+  removeDownload: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('drive:download-remove', id),
+  removeUpload: (id: string): Promise<boolean> => ipcRenderer.invoke('drive:upload-remove', id),
   onDownloadUpdated: (callback: (task: DownloadTask) => void): (() => void) => {
     const listener = (_event: unknown, task: DownloadTask): void => callback(task)
     ipcRenderer.on('drive:download-updated', listener)

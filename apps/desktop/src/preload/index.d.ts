@@ -42,6 +42,8 @@ declare global {
       cancelDownload(id: string): Promise<boolean>
       resumeDownload(id: string): Promise<unknown>
       revealDownload(id: string): Promise<boolean>
+      removeDownload(id: string): Promise<boolean>
+      removeUpload(id: string): Promise<boolean>
       onDownloadUpdated(callback: (task: DownloadTask) => void): () => void
       uploadFile(filePath: string, parentFolderId: string | null): Promise<unknown>
       createFolder(parentFolderId: string | null, name: string): Promise<unknown>

@@ -63,6 +63,18 @@ function cancel(id: string): void {
   void window.api.cancelDownload(id)
 }
 
+function removeDownloadTask(task: DownloadTask): void {
+  void window.api.removeDownload(task.id)
+  tasks.value = tasks.value.filter((t) => t.id !== task.id)
+  toast.add({ title: `已清除「${task.name}」的分片与记录`, icon: 'i-lucide-trash-2' })
+}
+
+function removeUploadTask(task: UploadTask): void {
+  void window.api.removeUpload(task.id)
+  uploads.value = uploads.value.filter((t) => t.id !== task.id)
+  toast.add({ title: `已清除「${task.name}」的上传记录`, icon: 'i-lucide-trash-2' })
+}
+
 function reveal(task: DownloadTask): void {
   void window.api.revealDownload(task.id)
 }
@@ -245,6 +257,14 @@ onBeforeUnmount(() => {
               :aria-label="task.resumable ? '继续上传' : '重新上传'"
               @click="retryUpload(task)"
             />
+            <UButton
+              icon="i-lucide-trash-2"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              aria-label="清除上传记录"
+              @click="removeUploadTask(task)"
+            />
           </div>
         </div>
       </div>
@@ -331,6 +351,14 @@ onBeforeUnmount(() => {
               @click="retry(task)"
             />
             <UButton
+              icon="i-lucide-trash-2"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              aria-label="清除分片与记录"
+              @click="removeDownloadTask(task)"
+            />
+            <UButton
               v-if="task.status === 'completed'"
               icon="i-lucide-external-link"
               size="xs"
@@ -365,6 +393,14 @@ onBeforeUnmount(() => {
             variant="ghost"
             :aria-label="task.resumable ? '继续下载' : '重新下载'"
             @click="retry(task)"
+          />
+          <UButton
+            icon="i-lucide-trash-2"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            aria-label="清除分片与记录"
+            @click="removeDownloadTask(task)"
           />
         </div>
       </div>

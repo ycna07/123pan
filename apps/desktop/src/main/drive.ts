@@ -466,6 +466,17 @@ export function registerDriveHandlers(): void {
     return { id: task.id }
   })
 
+  registerHandler('drive:download-remove', (_event, id: string) => {
+    const task = downloadTasks.get(id)
+    if (!task) return true
+    if (task.status === 'downloading') throw new Error('下载进行中，请先取消')
+    const { part, state } = partPaths(task.path)
+    rmSync(part, { force: true })
+    rmSync(state, { force: true })
+    downloadTasks.delete(id)
+    return true
+  })
+
   registerHandler('drive:downloads:reveal', (_event, id: string) => {
     const task = downloadTasks.get(id)
     if (task?.status === 'completed' && existsSync(task.path)) {
@@ -520,6 +531,15 @@ export function registerDriveHandlers(): void {
 
   registerHandler('drive:upload-cancel', (_event, id: string) => {
     uploadAborters.get(id)?.abort()
+    return true
+  })
+
+  registerHandler('drive:upload-remove', (_event, id: string) => {
+    const task = uploadTasks.get(id)
+    if (!task) return true
+    if (task.status === 'uploading') throw new Error('上传进行中，请先取消')
+    if (task.etag && task.size) clearUploadState(`${task.etag}:${task.size}`)
+    uploadTasks.delete(id)
     return true
   })
 
