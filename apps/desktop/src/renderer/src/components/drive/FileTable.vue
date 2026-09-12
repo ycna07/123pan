@@ -511,7 +511,8 @@ function onRootDrop(event: DragEvent): void {
       :row-selection-options="{ enableRowSelection: true }"
       :ui="{
         base: 'border-separate border-spacing-0',
-        tr: 'cursor-pointer transition-shadow duration-150 hover:shadow-md'
+        tr: 'group cursor-pointer transition duration-150 hover:shadow-[0_0_10px_rgba(0,0,0,0.12)]',
+        td: 'group-hover:bg-elevated/50 first:rounded-s-lg last:rounded-e-lg'
       }"
       sticky
       class="min-h-0 flex-1"
