@@ -12,21 +12,23 @@
 
 本 SDK 是基于一个采用 **MIT 许可证** 的第三方 123Pan SDK 的修改版本（fork），在此基础之上持续维护、修复并扩展功能。
 
+- 上游项目：<https://github.com/shijf/123pan-api-sdk>
+
 为保护个人信息，原项目的**作者联系方式、个人主页与仓库地址**已从以下位置移除：
 
 - 各 `package.json` 中的 `author` / `contributors` / `repository` / `bugs` / `homepage` 字段
 - `README.md`、`docs/` 文档与站点配置中的相关链接
 
-如需了解上游项目，请自行检索开源社区。
-
 ## 原始版权声明
 
-按照 MIT 许可证“保留版权声明”的要求，原项目的版权声明保留如下：
+按照 MIT 许可证“保留版权声明”的要求，原项目的版权声明与项目地址保留如下：
 
 ```
 MIT License
 
 Copyright (c) 2025 sharef
+
+Project: https://github.com/shijf/123pan-api-sdk
 ```
 
 本项目自身的发布与分发以 GPLv3 为准。

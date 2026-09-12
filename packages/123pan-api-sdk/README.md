@@ -220,7 +220,7 @@ try {
 
 本项目以 [GNU General Public License v3.0](./LICENSE) 发布。
 
-来源说明与作者信息处理方式见 [NOTICE.md](./NOTICE.md)。
+本项目基于 MIT 许可的上游项目 [123pan-api-sdk](https://github.com/shijf/123pan-api-sdk) 修改而来；原始版权声明、作者信息处理方式与来源说明见 [NOTICE.md](./NOTICE.md)。
 
 ## 相关链接
 
