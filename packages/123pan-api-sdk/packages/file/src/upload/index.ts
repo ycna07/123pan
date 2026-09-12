@@ -16,7 +16,13 @@ import type {
   IUploadFileResult,
   IUploadSession
 } from './types'
-import { calculateMD5, sliceFile, getFileSize } from './utils'
+import {
+  calculateMD5,
+  calculateFileMD5,
+  getFileSize,
+  getFilePathSize,
+  readFileRange
+} from './utils'
 
 interface UploadRequestData {
   Reuse?: boolean
@@ -177,6 +183,7 @@ export class UploadModule {
     const {
       filename,
       file,
+      filePath,
       etag,
       parentFileID = 0,
       onProgress,
@@ -188,7 +195,10 @@ export class UploadModule {
       onPartComplete
     } = params
 
-    const fileSize = getFileSize(file)
+    if (!file && !filePath) {
+      throw new Error('缺少上传数据：请提供 file 或 filePath')
+    }
+    const fileSize = filePath ? await getFilePathSize(filePath) : getFileSize(file as Buffer)
     signal?.throwIfAborted()
 
     let context: UploadContext
@@ -213,7 +223,7 @@ export class UploadModule {
     } else {
       let fileMd5 = etag
       if (!fileMd5) {
-        fileMd5 = await calculateMD5(file)
+        fileMd5 = filePath ? await calculateFileMD5(filePath) : await calculateMD5(file as Buffer)
       }
 
       const createResult = await this.httpClient.post<UploadRequestData>(
@@ -278,7 +288,15 @@ export class UploadModule {
       onSession?.(session)
     }
 
-    const slices = isMultipart ? sliceFile(file, sliceSize) : [toBuffer(file)]
+    // 按需读取分片：filePath 模式下每个分片独立从磁盘读取，内存占用仅为分片大小
+    const bufferSource = file ? toBuffer(file) : null
+    const totalParts = isMultipart ? Math.ceil(fileSize / sliceSize) : 1
+    const getPartData = async (index: number): Promise<Buffer> => {
+      const start = index * sliceSize
+      const length = Math.min(sliceSize, fileSize - start)
+      if (filePath) return readFileRange(filePath, start, length)
+      return (bufferSource as Buffer).subarray(start, start + length)
+    }
     const alreadyDone = new Set(completedParts ?? [])
     const bytesOfPart = (partNumber: number): number =>
       Math.min(sliceSize, fileSize - (partNumber - 1) * sliceSize)
@@ -287,12 +305,13 @@ export class UploadModule {
       reportProgress(onProgress, resumedBytes, fileSize)
     }
 
-    for (let index = 0; index < slices.length; index++) {
+    for (let index = 0; index < totalParts; index++) {
       const sliceNo = index + 1
       signal?.throwIfAborted()
       if (alreadyDone.has(sliceNo)) {
         continue
       }
+      const slice = await getPartData(index)
       let presignedUrl: string
 
       if (isMultipart) {
@@ -317,7 +336,7 @@ export class UploadModule {
         throw new Error(`上传失败：未获取到第 ${sliceNo} 个分片的预签名地址`)
       }
 
-      await axios.put(presignedUrl, slices[index], {
+      await axios.put(presignedUrl, slice, {
         signal,
         headers: {
           'Content-Type': 'application/octet-stream'
@@ -330,7 +349,7 @@ export class UploadModule {
               Math.min(completedBytes, fileSize),
               fileSize,
               sliceNo,
-              slices.length
+              totalParts
             )
           }
         }
@@ -342,7 +361,7 @@ export class UploadModule {
           Math.min((index + 1) * sliceSize, fileSize),
           fileSize,
           sliceNo,
-          slices.length
+          totalParts
         )
       }
       onPartComplete?.(sliceNo)

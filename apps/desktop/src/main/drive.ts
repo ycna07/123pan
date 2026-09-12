@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { open, readFile } from 'node:fs/promises'
+import { open } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { basename, dirname, join } from 'node:path'
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
@@ -13,7 +13,7 @@ import type {
   UploadProgress,
   UploadTask
 } from '@123pan/shared-types'
-import { calculateMD5 } from '@123pan/api-sdk'
+import { calculateFileMD5, getFilePathSize } from '@123pan/api-sdk'
 import type { FileListItem, IUploadSession, Pan123SDK } from '@123pan/api-sdk'
 import { getSettings } from './settings'
 import { getSdk } from './auth'
@@ -1074,17 +1074,18 @@ async function runUpload(task: UploadTaskInternal, parentFolderId: number): Prom
 
   try {
     if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
-    const buffer = await readFile(task.path)
-    task.size = buffer.length
-    const etag = task.etag ?? (await calculateMD5(buffer))
+    // 超大文件按分片流式上传：仅读取文件大小与流式 MD5，不将整文件读入内存
+    const size = await getFilePathSize(task.path)
+    task.size = size
+    const etag = task.etag ?? (await calculateFileMD5(task.path))
     task.etag = etag
-    stateKey = `${etag}:${buffer.length}`
+    stateKey = `${etag}:${size}`
 
     const saved = loadUploadStates()[stateKey]
     const canResume =
       !!saved &&
       saved.name === task.name &&
-      saved.size === buffer.length &&
+      saved.size === size &&
       saved.parentFolderId === parentFolderId &&
       Date.now() - saved.savedAt < 24 * 3600 * 1000
     if (canResume && saved) {
@@ -1099,7 +1100,7 @@ async function runUpload(task: UploadTaskInternal, parentFolderId: number): Prom
       states[stateKey] = {
         filePath: task.path,
         name: task.name,
-        size: buffer.length,
+        size,
         etag,
         parentFolderId,
         session: currentSession,
@@ -1111,7 +1112,7 @@ async function runUpload(task: UploadTaskInternal, parentFolderId: number): Prom
 
     const result = await sdk.file.upload.uploadFile({
       filename: task.name,
-      file: buffer,
+      filePath: task.path,
       parentFileID: parentFolderId,
       duplicate: 1,
       signal: controller.signal,
@@ -1119,7 +1120,7 @@ async function runUpload(task: UploadTaskInternal, parentFolderId: number): Prom
         ? { resumeSession: saved.session, completedParts: saved.completedParts }
         : {}),
       onProgress: (progress) => {
-        task.size = progress.total || buffer.length
+        task.size = progress.total || size
         task.received = progress.loaded
         report()
       },
@@ -1135,8 +1136,8 @@ async function runUpload(task: UploadTaskInternal, parentFolderId: number): Prom
 
     if (!result.fileID) throw new Error('上传失败：未获取到文件 ID')
     clearUploadState(stateKey)
-    task.size = buffer.length
-    task.received = buffer.length
+    task.size = size
+    task.received = size
     task.status = 'completed'
     task.resumable = false
     delete task.error

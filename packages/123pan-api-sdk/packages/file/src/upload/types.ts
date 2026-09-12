@@ -81,8 +81,10 @@ export interface IUploadSession {
 export interface IUploadFileParams {
   /** 文件名：要小于255个字符且不能包含以下任何字符："\/:*?|><。（注：不能重名） */
   filename: string
-  /** 文件数据（Buffer、Uint8Array、ArrayBuffer） */
-  file: ArrayBuffer | Buffer | Uint8Array
+  /** 文件数据（Buffer、Uint8Array、ArrayBuffer）；与 filePath 二选一 */
+  file?: ArrayBuffer | Buffer | Uint8Array
+  /** 文件路径：按分片流式读取，支持超大文件（>2GiB，避免整文件读入内存） */
+  filePath?: string
   /** 文件md5（可选，如果不提供会自动计算） */
   etag?: string
   /** 父目录id，上传到根目录时填写 0 */

@@ -791,6 +791,7 @@ function toNumber(value: unknown, fallback = 0): number {
 
 // 导出上传模块和类型
 export { UploadModule } from './upload'
+export { calculateFileMD5, readFileRange, getFilePathSize } from './upload/utils'
 export type {
   ICreateFolderResponse,
   ICreateFileResponse,
