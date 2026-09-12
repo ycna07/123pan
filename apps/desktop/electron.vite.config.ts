@@ -12,6 +12,6 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
-    plugins: [vue(), ui()]
+    plugins: [vue(), ui({ icon: { clientBundle: { scan: true } } })]
   }
 })

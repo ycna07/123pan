@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref, resolveComponent, watch } from 'vue'
 import type { DropdownMenuItem, TableColumn } from '@nuxt/ui'
 import { useToast } from '@nuxt/ui/composables'
 import type { DriveFileType, DriveItem } from '@123pan/shared-types'
@@ -136,11 +136,31 @@ const filteredItems = computed(() => {
 
 const selectedCount = computed(() => Object.values(rowSelection.value).filter(Boolean).length)
 
+const UButton = resolveComponent('UButton')
+
+function sortableHeader(label: string): TableColumn<DriveItem>['header'] {
+  return ({ column }) => {
+    const sorted = column.getIsSorted()
+    return h(UButton, {
+      color: 'neutral',
+      variant: 'ghost',
+      label,
+      icon: sorted
+        ? sorted === 'asc'
+          ? 'i-lucide-arrow-up-narrow-wide'
+          : 'i-lucide-arrow-down-wide-narrow'
+        : 'i-lucide-arrow-up-down',
+      class: '-mx-2.5',
+      onClick: () => column.toggleSorting(sorted === 'asc')
+    })
+  }
+}
+
 const columns: TableColumn<DriveItem>[] = [
   { id: 'select', enableSorting: false },
-  { accessorKey: 'name', header: '名称' },
-  { accessorKey: 'size', header: '大小' },
-  { accessorKey: 'updatedAt', header: '修改时间' },
+  { accessorKey: 'name', header: sortableHeader('名称') },
+  { accessorKey: 'size', header: sortableHeader('大小') },
+  { accessorKey: 'updatedAt', header: sortableHeader('修改时间') },
   { id: 'actions', header: '', enableSorting: false }
 ]
 
@@ -511,8 +531,8 @@ function onRootDrop(event: DragEvent): void {
       :row-selection-options="{ enableRowSelection: true }"
       :ui="{
         base: 'border-separate border-spacing-0',
-        tr: 'group cursor-pointer transition duration-150 hover:shadow-[0_0_10px_rgba(0,0,0,0.12)]',
-        td: 'group-hover:bg-elevated/50 first:rounded-s-lg last:rounded-e-lg'
+        tbody:
+          '[&>tr]:cursor-pointer [&>tr]:transition [&>tr:hover]:shadow-[0_0_10px_rgba(0,0,0,0.12)] [&>tr:hover>td]:bg-elevated/50 [&>tr:hover>td:first-child]:rounded-s-lg [&>tr:hover>td:last-child]:rounded-e-lg'
       }"
       sticky
       class="min-h-0 flex-1"
