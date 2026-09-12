@@ -10,9 +10,11 @@ import type {
   DownloadTask,
   ReuseExportResult,
   StorageUsage,
-  UploadProgress
+  UploadProgress,
+  UploadTask
 } from '@123pan/shared-types'
-import type { FileListItem, Pan123SDK } from '@123pan/api-sdk'
+import { calculateMD5 } from '@123pan/api-sdk'
+import type { FileListItem, IUploadSession, Pan123SDK } from '@123pan/api-sdk'
 import { getSettings } from './settings'
 import { getSdk } from './auth'
 
@@ -493,34 +495,45 @@ export function registerDriveHandlers(): void {
     return { id: String(created.data.dirID), name: trimmed }
   })
 
-  registerHandler(
-    'drive:upload',
-    async (_event, filePath: string, parentFolderId: string | null) => {
-      const sdk = getSdk()
-      if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
-      const buffer = await readFile(filePath)
-      const name = basename(filePath)
-      const parentFileID = toFolderId(parentFolderId, '目录 ID')
-      const result = await sdk.file.upload.uploadFile({
-        filename: name,
-        file: buffer,
-        parentFileID,
-        duplicate: 1,
-        onProgress: (progress) => {
-          const uploadProgress: UploadProgress = {
-            name,
-            received: progress.loaded,
-            total: progress.total
-          }
-          broadcast('drive:upload-progress', uploadProgress)
-        }
-      })
-      if (!result.fileID) {
-        throw new Error('上传失败：未获取到文件 ID')
-      }
-      return { fileID: String(result.fileID), name, reused: result.isReuse }
+  registerHandler('drive:upload', (_event, filePath: string, parentFolderId: string | null) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    const parentId = toFolderId(parentFolderId, '目录 ID')
+    const task: UploadTaskInternal = {
+      id: randomUUID(),
+      name: basename(filePath),
+      path: filePath,
+      size: 0,
+      received: 0,
+      status: 'uploading',
+      startedAt: Date.now()
     }
+    uploadTasks.set(task.id, task)
+    emitUploadTask(task)
+    void runUpload(task, parentId)
+    return { id: task.id }
+  })
+
+  registerHandler('drive:uploads:list', () =>
+    [...uploadTasks.values()].sort((a, b) => b.startedAt - a.startedAt)
   )
+
+  registerHandler('drive:upload-cancel', (_event, id: string) => {
+    uploadAborters.get(id)?.abort()
+    return true
+  })
+
+  registerHandler('drive:upload-resume', (_event, id: string) => {
+    const task = uploadTasks.get(id)
+    if (!task) throw new Error('上传任务不存在')
+    if (task.status === 'uploading') return { id: task.id }
+    task.status = 'uploading'
+    delete task.error
+    delete task.finishedAt
+    emitUploadTask(task)
+    void runUpload(task, task.parentFolderId ?? 0)
+    return { id: task.id }
+  })
 
   registerHandler('drive:offline', async (_event, url: string, parentFolderId: string | null) => {
     const sdk = getSdk()
@@ -844,11 +857,7 @@ async function downloadSegmented(
   if (existsSync(statePath) && existsSync(part)) {
     try {
       const saved = JSON.parse(readFileSync(statePath, 'utf-8')) as DownloadStateFile
-      if (
-        saved.fileId === task.fileId &&
-        saved.size === size &&
-        saved.chunkSize === chunkSize
-      ) {
+      if (saved.fileId === task.fileId && saved.size === size && saved.chunkSize === chunkSize) {
         for (const index of saved.completed) {
           if (Number.isInteger(index) && index >= 0 && index < totalChunks) completed.add(index)
         }
@@ -970,5 +979,183 @@ async function runDownload(task: DownloadTaskInternal, url: string): Promise<voi
     task.finishedAt = task.finishedAt ?? Date.now()
     emitProgress(task)
     emitTask(task)
+  }
+}
+
+// ---------- 可续传上传 ----------
+
+interface UploadTaskInternal extends UploadTask {
+  controller?: AbortController
+  etag?: string
+  parentFolderId?: number
+}
+
+interface UploadStateEntry {
+  filePath: string
+  name: string
+  size: number
+  etag: string
+  parentFolderId: number
+  session: IUploadSession
+  completedParts: number[]
+  savedAt: number
+}
+
+const uploadTasks = new Map<string, UploadTaskInternal>()
+const uploadAborters = new Map<string, AbortController>()
+
+function uploadStatePath(): string {
+  return join(app.getPath('userData'), 'upload-state.json')
+}
+
+function loadUploadStates(): Record<string, UploadStateEntry> {
+  try {
+    return JSON.parse(readFileSync(uploadStatePath(), 'utf-8')) as Record<string, UploadStateEntry>
+  } catch {
+    return {}
+  }
+}
+
+function clearUploadState(key: string): void {
+  if (!key) return
+  const states = loadUploadStates()
+  if (states[key]) {
+    delete states[key]
+    writeFileSync(uploadStatePath(), JSON.stringify(states))
+  }
+}
+
+function emitUploadTask(task: UploadTaskInternal): void {
+  const serialized: UploadTask = {
+    id: task.id,
+    name: task.name,
+    path: task.path,
+    size: task.size,
+    received: task.received,
+    status: task.status,
+    ...(task.error && { error: task.error }),
+    ...(task.resumable && { resumable: true }),
+    startedAt: task.startedAt,
+    ...(task.finishedAt !== undefined && { finishedAt: task.finishedAt })
+  }
+  broadcast('drive:upload-updated', serialized)
+}
+
+function emitUploadProgress(task: UploadTaskInternal): void {
+  const progress: UploadProgress = {
+    name: task.name,
+    received: task.received,
+    total: task.size
+  }
+  broadcast('drive:upload-progress', progress)
+}
+
+/** 上传（支持断点续传）：会话与已传分片持久化到 upload-state.json */
+async function runUpload(task: UploadTaskInternal, parentFolderId: number): Promise<void> {
+  const sdk = getSdk()
+  const controller = new AbortController()
+  task.controller = controller
+  task.parentFolderId = parentFolderId
+  task.resumable = false
+  uploadAborters.set(task.id, controller)
+  let lastEmit = 0
+  const report = (): void => {
+    const now = Date.now()
+    if (now - lastEmit > 300) {
+      lastEmit = now
+      emitUploadProgress(task)
+      emitUploadTask(task)
+    }
+  }
+
+  let stateKey = ''
+  let currentSession: IUploadSession | null = null
+  const completedParts: number[] = []
+
+  try {
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    const buffer = await readFile(task.path)
+    task.size = buffer.length
+    const etag = task.etag ?? (await calculateMD5(buffer))
+    task.etag = etag
+    stateKey = `${etag}:${buffer.length}`
+
+    const saved = loadUploadStates()[stateKey]
+    const canResume =
+      !!saved &&
+      saved.name === task.name &&
+      saved.size === buffer.length &&
+      saved.parentFolderId === parentFolderId &&
+      Date.now() - saved.savedAt < 24 * 3600 * 1000
+    if (canResume && saved) {
+      currentSession = saved.session
+      completedParts.push(...saved.completedParts)
+      task.resumable = true
+    }
+
+    const persist = (): void => {
+      if (!currentSession) return
+      const states = loadUploadStates()
+      states[stateKey] = {
+        filePath: task.path,
+        name: task.name,
+        size: buffer.length,
+        etag,
+        parentFolderId,
+        session: currentSession,
+        completedParts: [...completedParts].sort((a, b) => a - b),
+        savedAt: Date.now()
+      }
+      writeFileSync(uploadStatePath(), JSON.stringify(states))
+    }
+
+    const result = await sdk.file.upload.uploadFile({
+      filename: task.name,
+      file: buffer,
+      parentFileID: parentFolderId,
+      duplicate: 1,
+      signal: controller.signal,
+      ...(canResume && saved
+        ? { resumeSession: saved.session, completedParts: saved.completedParts }
+        : {}),
+      onProgress: (progress) => {
+        task.size = progress.total || buffer.length
+        task.received = progress.loaded
+        report()
+      },
+      onSession: (session) => {
+        currentSession = session
+        persist()
+      },
+      onPartComplete: (partNumber) => {
+        if (!completedParts.includes(partNumber)) completedParts.push(partNumber)
+        persist()
+      }
+    })
+
+    if (!result.fileID) throw new Error('上传失败：未获取到文件 ID')
+    clearUploadState(stateKey)
+    task.size = buffer.length
+    task.received = buffer.length
+    task.status = 'completed'
+    task.resumable = false
+    delete task.error
+    task.finishedAt = Date.now()
+  } catch (error) {
+    const aborted = controller.signal.aborted
+    task.status = aborted ? 'canceled' : 'failed'
+    if (aborted) {
+      delete task.error
+    } else {
+      task.error = String((error as Error).message || error)
+      // 4xx 多为会话失效，清除状态以便下次从头开始
+      if (/status code 4\d\d/.test(task.error)) clearUploadState(stateKey)
+    }
+    task.resumable = !!loadUploadStates()[stateKey]?.session
+  } finally {
+    uploadAborters.delete(task.id)
+    task.finishedAt = task.finishedAt ?? Date.now()
+    emitUploadProgress(task)
+    emitUploadTask(task)
   }
 }

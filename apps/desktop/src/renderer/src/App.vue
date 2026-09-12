@@ -23,7 +23,7 @@ const viewTitle = computed(
   () =>
     ({
       files: '全部文件',
-      downloads: '下载管理',
+      downloads: '传输管理',
       trash: '回收站'
     })[activeView.value]
 )
@@ -74,8 +74,8 @@ const navItems = computed(() => [
     }
   },
   {
-    label: '下载管理',
-    icon: 'i-lucide-download',
+    label: '传输管理',
+    icon: 'i-lucide-arrow-down-up',
     badge: activeDownloads.value.size > 0 ? String(activeDownloads.value.size) : undefined,
     onSelect: () => {
       activeView.value = 'downloads'
@@ -326,11 +326,13 @@ async function uploadOne(filePath: string): Promise<void> {
   const name = filePath.split(/[\\/]/).pop() ?? filePath
   try {
     await window.api.uploadFile(filePath, currentFolderId.value)
-    toast.add({ title: `「${name}」上传成功`, icon: 'i-lucide-cloud-upload' })
-    await reloadFolder(currentFolderId.value)
+    toast.add({
+      title: `「${name}」已加入上传队列`,
+      description: '可在侧边栏「传输管理」查看进度',
+      icon: 'i-lucide-cloud-upload'
+    })
   } catch (error) {
     showError(error, `上传「${name}」失败`)
-  } finally {
     activeUploads.value.delete(name)
   }
 }
@@ -399,6 +401,7 @@ const reuseProgress = ref<{ done: number; total: number; current: string; ok: bo
   null
 )
 let removeReuseProgress: (() => void) | null = null
+let removeUploadUpdated: (() => void) | null = null
 
 function openReuse(): void {
   reuseText.value = ''
@@ -505,6 +508,16 @@ onMounted(async () => {
   removeReuseProgress = window.api.onReuseProgress((progress) => {
     reuseProgress.value = progress
   })
+  removeUploadUpdated = window.api.onUploadUpdated((task) => {
+    if (task.status === 'uploading') return
+    activeUploads.value.delete(task.name)
+    if (task.status === 'completed') {
+      toast.add({ title: `「${task.name}」上传完成`, icon: 'i-lucide-cloud-upload' })
+      void reloadFolder(currentFolderId.value)
+    } else if (task.status === 'failed') {
+      showError(new Error(task.error || '上传失败'), `上传「${task.name}」失败`)
+    }
+  })
   window.api.onLoginSuccess((status) => {
     applyAuthStatus(status)
     const displayName = status.nickname || status.account || '用户'
@@ -525,6 +538,7 @@ onMounted(async () => {
     removeDownloadProgress()
     removeUploadProgress()
     removeReuseProgress?.()
+    removeUploadUpdated?.()
   })
 })
 

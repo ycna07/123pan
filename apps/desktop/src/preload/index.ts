@@ -8,7 +8,8 @@ import type {
   DownloadTask,
   QrLoginState,
   StorageUsage,
-  UploadProgress
+  UploadProgress,
+  UploadTask
 } from '@123pan/shared-types'
 
 // Custom APIs for renderer
@@ -71,6 +72,14 @@ const api = {
     const listener = (_event: unknown, progress: UploadProgress): void => callback(progress)
     ipcRenderer.on('drive:upload-progress', listener)
     return () => ipcRenderer.removeListener('drive:upload-progress', listener)
+  },
+  uploadsList: (): Promise<UploadTask[]> => ipcRenderer.invoke('drive:uploads:list'),
+  cancelUpload: (id: string): Promise<boolean> => ipcRenderer.invoke('drive:upload-cancel', id),
+  resumeUpload: (id: string): Promise<unknown> => ipcRenderer.invoke('drive:upload-resume', id),
+  onUploadUpdated: (callback: (task: UploadTask) => void): (() => void) => {
+    const listener = (_event: unknown, task: UploadTask): void => callback(task)
+    ipcRenderer.on('drive:upload-updated', listener)
+    return () => ipcRenderer.removeListener('drive:upload-updated', listener)
   },
   reuseSave: (parentFolderId: string | null, jsonText: string): Promise<unknown> =>
     ipcRenderer.invoke('drive:reuse-save', parentFolderId, jsonText),

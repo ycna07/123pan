@@ -13,7 +13,8 @@ import type {
   IGetUploadDomainResponse,
   ISingleUploadResponse,
   IUploadFileParams,
-  IUploadFileResult
+  IUploadFileResult,
+  IUploadSession
 } from './types'
 import { calculateMD5, sliceFile, getFileSize } from './utils'
 
@@ -173,64 +174,125 @@ export class UploadModule {
    * containDir、useSingleUpload 和 asyncMode 在普通用户 API 中没有对应能力，会被忽略。
    */
   async uploadFile(params: IUploadFileParams): Promise<IUploadFileResult> {
-    const { filename, file, etag, parentFileID = 0, onProgress, duplicate } = params
+    const {
+      filename,
+      file,
+      etag,
+      parentFileID = 0,
+      onProgress,
+      duplicate,
+      signal,
+      resumeSession,
+      completedParts,
+      onSession,
+      onPartComplete
+    } = params
 
     const fileSize = getFileSize(file)
-    let fileMd5 = etag
-    if (!fileMd5) {
-      fileMd5 = await calculateMD5(file)
-    }
+    signal?.throwIfAborted()
 
-    const createResult = await this.httpClient.post<UploadRequestData>('/api/file/upload_request', {
-      fileName: filename,
-      parentFileId: parentFileID,
-      driveId: 0,
-      duplicate: duplicate || 0,
-      etag: fileMd5,
-      size: fileSize,
-      type: 0,
-      NotReuse: false
-    })
+    let context: UploadContext
+    let sliceSize: number
+    let isMultipart: boolean
+    let session: IUploadSession
+    let fileID: number | undefined
 
-    const uploadData = createResult.data
-    const fileID = extractFileID(uploadData)
-    if (uploadData.Reuse) {
-      if (onProgress) {
-        reportProgress(onProgress, fileSize, fileSize)
+    if (resumeSession) {
+      fileID = resumeSession.FileId
+      // 续传：沿用已保存的会话，跳过 upload_request 与 md5 计算
+      context = {
+        FileId: resumeSession.FileId,
+        bucket: resumeSession.bucket,
+        key: resumeSession.key,
+        storageNode: resumeSession.storageNode,
+        uploadId: resumeSession.uploadId
       }
-      if (!fileID) {
-        throw new Error('秒传成功但响应中没有文件 ID')
+      sliceSize = resumeSession.sliceSize
+      isMultipart = resumeSession.isMultipart
+      session = resumeSession
+    } else {
+      let fileMd5 = etag
+      if (!fileMd5) {
+        fileMd5 = await calculateMD5(file)
       }
-      return {
-        fileID,
-        isReuse: true,
-        isSingleUpload: false
+
+      const createResult = await this.httpClient.post<UploadRequestData>(
+        '/api/file/upload_request',
+        {
+          fileName: filename,
+          parentFileId: parentFileID,
+          driveId: 0,
+          duplicate: duplicate || 0,
+          etag: fileMd5,
+          size: fileSize,
+          type: 0,
+          NotReuse: false
+        }
+      )
+
+      const uploadData = createResult.data
+      fileID = extractFileID(uploadData)
+      if (uploadData.Reuse) {
+        if (onProgress) {
+          reportProgress(onProgress, fileSize, fileSize)
+        }
+        if (!fileID) {
+          throw new Error('秒传成功但响应中没有文件 ID')
+        }
+        return {
+          fileID,
+          isReuse: true,
+          isSingleUpload: false
+        }
       }
+
+      sliceSize = Number(uploadData.SliceSize || 0)
+      if (
+        !sliceSize ||
+        !uploadData.Bucket ||
+        !uploadData.Key ||
+        !uploadData.StorageNode ||
+        !uploadData.UploadId
+      ) {
+        throw new Error('上传初始化失败：缺少 S3 上传上下文')
+      }
+
+      context = {
+        FileId: fileID || 0,
+        bucket: uploadData.Bucket,
+        key: uploadData.Key,
+        storageNode: uploadData.StorageNode,
+        uploadId: uploadData.UploadId
+      }
+      isMultipart = fileSize > sliceSize
+      session = {
+        FileId: context.FileId,
+        bucket: context.bucket,
+        key: context.key,
+        storageNode: context.storageNode,
+        uploadId: context.uploadId,
+        sliceSize,
+        totalParts: isMultipart ? Math.ceil(fileSize / sliceSize) : 1,
+        isMultipart
+      }
+      onSession?.(session)
     }
 
-    const sliceSize = Number(uploadData.SliceSize || 0)
-    if (
-      !sliceSize ||
-      !uploadData.Bucket ||
-      !uploadData.Key ||
-      !uploadData.StorageNode ||
-      !uploadData.UploadId
-    ) {
-      throw new Error('上传初始化失败：缺少 S3 上传上下文')
-    }
-
-    const context: UploadContext = {
-      FileId: fileID || 0,
-      bucket: uploadData.Bucket,
-      key: uploadData.Key,
-      storageNode: uploadData.StorageNode,
-      uploadId: uploadData.UploadId
-    }
-    const isMultipart = fileSize > sliceSize
     const slices = isMultipart ? sliceFile(file, sliceSize) : [toBuffer(file)]
+    const alreadyDone = new Set(completedParts ?? [])
+    const bytesOfPart = (partNumber: number): number =>
+      Math.min(sliceSize, fileSize - (partNumber - 1) * sliceSize)
+    if (alreadyDone.size > 0 && onProgress) {
+      const resumedBytes = [...alreadyDone].reduce((sum, part) => sum + bytesOfPart(part), 0)
+      reportProgress(onProgress, resumedBytes, fileSize)
+    }
 
     for (let index = 0; index < slices.length; index++) {
       const sliceNo = index + 1
+      signal?.throwIfAborted()
+      if (alreadyDone.has(sliceNo)) {
+        continue
+      }
       let presignedUrl: string
 
       if (isMultipart) {
@@ -256,6 +318,7 @@ export class UploadModule {
       }
 
       await axios.put(presignedUrl, slices[index], {
+        signal,
         headers: {
           'Content-Type': 'application/octet-stream'
         },
@@ -282,6 +345,7 @@ export class UploadModule {
           slices.length
         )
       }
+      onPartComplete?.(sliceNo)
     }
 
     const complete = await this.httpClient.post<UploadCompleteData>(
@@ -311,7 +375,8 @@ export class UploadModule {
       fileID: completedFileID,
       isReuse: false,
       isSingleUpload: !isMultipart,
-      isAsync: false
+      isAsync: false,
+      session
     }
   }
 }

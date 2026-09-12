@@ -9,7 +9,8 @@ import type {
   QrLoginState,
   ReuseExportResult,
   StorageUsage,
-  UploadProgress
+  UploadProgress,
+  UploadTask
 } from '@123pan/shared-types'
 
 declare global {
@@ -47,6 +48,10 @@ declare global {
       createOfflineTask(url: string, parentFolderId: string | null): Promise<unknown>
       getPathForFile(file: File): string
       onUploadProgress(callback: (progress: UploadProgress) => void): () => void
+      uploadsList(): Promise<UploadTask[]>
+      cancelUpload(id: string): Promise<boolean>
+      resumeUpload(id: string): Promise<unknown>
+      onUploadUpdated(callback: (task: UploadTask) => void): () => void
       reuseSave(parentFolderId: string | null, jsonText: string): Promise<unknown>
       exportReuse(fileIds: string[]): Promise<ReuseExportResult>
       onReuseProgress(

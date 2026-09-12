@@ -36,6 +36,22 @@ export interface UploadProgress {
   total: number
 }
 
+export type UploadTaskStatus = 'uploading' | 'completed' | 'failed' | 'canceled'
+
+export interface UploadTask {
+  id: string
+  name: string
+  path: string
+  size: number
+  received: number
+  status: UploadTaskStatus
+  error?: string
+  /** 存在可续传的上传会话 */
+  resumable?: boolean
+  startedAt: number
+  finishedAt?: number
+}
+
 export interface ReuseExportResult {
   count: number
   skipped: number

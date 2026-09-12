@@ -1,16 +1,44 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useToast } from '@nuxt/ui/composables'
-import type { AppSettings, DownloadTask } from '@123pan/shared-types'
+import type { AppSettings, DownloadTask, UploadTask } from '@123pan/shared-types'
 import { formatSize } from '@renderer/utils/format'
 
 const toast = useToast()
 
 const tasks = ref<DownloadTask[]>([])
+const uploads = ref<UploadTask[]>([])
 const settings = ref<AppSettings | null>(null)
 let removeUpdated: (() => void) | null = null
+let removeUploadUpdated: (() => void) | null = null
 
 const active = (): DownloadTask[] => tasks.value.filter((t) => t.status === 'downloading')
+const activeUploads = (): UploadTask[] => uploads.value.filter((t) => t.status === 'uploading')
+const finishedUploads = (): UploadTask[] => uploads.value.filter((t) => t.status !== 'uploading')
+
+function cancelUpload(id: string): void {
+  void window.api.cancelUpload(id)
+}
+
+function retryUpload(task: UploadTask): void {
+  void window.api.resumeUpload(task.id)
+  toast.add({
+    title: task.resumable ? `「${task.name}」继续上传` : `「${task.name}」重新上传`,
+    icon: 'i-lucide-cloud-upload'
+  })
+}
+
+function uploadStatusIcon(task: UploadTask): string {
+  if (task.status === 'completed') return 'i-lucide-check'
+  if (task.status === 'failed') return 'i-lucide-circle-x'
+  return 'i-lucide-ban'
+}
+
+function uploadStatusClass(task: UploadTask): string {
+  if (task.status === 'completed') return 'text-success'
+  if (task.status === 'failed') return 'text-error'
+  return 'text-muted'
+}
 const finished = (): DownloadTask[] =>
   tasks.value.filter((t) => t.status !== 'downloading' && t.status !== 'canceled')
 const canceled = (): DownloadTask[] => tasks.value.filter((t) => t.status === 'canceled')
@@ -61,12 +89,19 @@ onMounted(async () => {
     if (index >= 0) tasks.value.splice(index, 1, task)
     else tasks.value.unshift(task)
   })
+  removeUploadUpdated = window.api.onUploadUpdated((task) => {
+    const index = uploads.value.findIndex((t) => t.id === task.id)
+    if (index >= 0) uploads.value.splice(index, 1, task)
+    else uploads.value.unshift(task)
+  })
   tasks.value = await window.api.downloadsList()
+  uploads.value = await window.api.uploadsList()
   settings.value = await window.api.getSettings()
 })
 
 onBeforeUnmount(() => {
   removeUpdated?.()
+  removeUploadUpdated?.()
 })
 </script>
 
@@ -123,6 +158,95 @@ onBeforeUnmount(() => {
       <div v-else class="flex items-center gap-2 text-sm text-muted">
         <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" />
         加载设置中…
+      </div>
+    </UCard>
+
+    <UCard>
+      <template #header>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-cloud-upload" class="size-4 text-primary" />
+            <span class="font-medium text-highlighted">上传中</span>
+          </div>
+          <UBadge
+            v-if="activeUploads().length"
+            :label="String(activeUploads().length)"
+            variant="soft"
+          />
+        </div>
+      </template>
+      <div v-if="activeUploads().length === 0" class="py-6 text-center text-sm text-muted">
+        暂无进行中的上传
+      </div>
+      <div v-else class="flex flex-col gap-4">
+        <div v-for="task in activeUploads()" :key="task.id" class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between gap-3">
+            <span class="min-w-0 truncate text-sm font-medium text-highlighted">
+              {{ task.name }}
+            </span>
+            <div class="flex shrink-0 items-center gap-2">
+              <span class="tabular-nums text-xs text-muted">
+                {{ formatSize(task.received) }} / {{ task.size > 0 ? formatSize(task.size) : '…' }}
+              </span>
+              <UButton
+                icon="i-lucide-x"
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                aria-label="取消上传"
+                @click="cancelUpload(task.id)"
+              />
+            </div>
+          </div>
+          <UProgress
+            :model-value="task.size > 0 ? Math.min(100, (task.received / task.size) * 100) : 0"
+            size="xs"
+          />
+          <p class="truncate text-xs text-dimmed">{{ task.path }}</p>
+        </div>
+      </div>
+    </UCard>
+
+    <UCard v-if="finishedUploads().length > 0">
+      <template #header>
+        <div class="flex items-center gap-2">
+          <UIcon name="i-lucide-cloud-upload" class="size-4 text-success" />
+          <span class="font-medium text-highlighted">上传记录</span>
+        </div>
+      </template>
+      <div class="flex flex-col divide-y divide-default">
+        <div
+          v-for="task in finishedUploads()"
+          :key="task.id"
+          class="flex items-center justify-between gap-3 py-2.5"
+        >
+          <div class="min-w-0">
+            <p class="truncate text-sm text-highlighted">
+              <UIcon
+                :name="uploadStatusIcon(task)"
+                :class="uploadStatusClass(task)"
+                class="mr-1.5 inline-block size-4 align-text-bottom"
+              />
+              {{ task.name }}
+              <span v-if="task.status === 'failed'" class="text-xs text-error">{{
+                task.error
+              }}</span>
+            </p>
+            <p class="truncate text-xs text-dimmed">{{ task.path }}</p>
+          </div>
+          <div class="flex shrink-0 items-center gap-1">
+            <span class="tabular-nums text-xs text-muted">{{ formatSize(task.size) }}</span>
+            <UButton
+              v-if="task.status !== 'completed'"
+              :icon="task.resumable ? 'i-lucide-play' : 'i-lucide-rotate-cw'"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              :aria-label="task.resumable ? '继续上传' : '重新上传'"
+              @click="retryUpload(task)"
+            />
+          </div>
+        </div>
       </div>
     </UCard>
 

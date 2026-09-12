@@ -800,6 +800,7 @@ export type {
   ISingleUploadResponse,
   IUploadFileParams,
   IUploadFileResult,
+  IUploadSession,
   UploadProgressCallback as UploadProgressCallbackOfFile
 } from './upload/types'
 

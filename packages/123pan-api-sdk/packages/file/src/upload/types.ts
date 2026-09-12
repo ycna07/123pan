@@ -61,6 +61,22 @@ export interface UploadProgressCallback {
   }): void
 }
 
+/** 可续传的上传会话（upload_request 返回的 S3 上下文 + 分片信息） */
+export interface IUploadSession {
+  /** upload_request 返回的文件 ID */
+  FileId: number
+  bucket: string
+  key: string
+  storageNode: string
+  uploadId: string
+  /** 分片大小（字节） */
+  sliceSize: number
+  /** 分片总数 */
+  totalParts: number
+  /** 是否为多分片上传 */
+  isMultipart: boolean
+}
+
 /** 上传文件参数（Node.js环境） */
 export interface IUploadFileParams {
   /** 文件名：要小于255个字符且不能包含以下任何字符："\/:*?|><。（注：不能重名） */
@@ -88,6 +104,16 @@ export interface IUploadFileParams {
    * - true: 异步模式，上传完成后立即返回，需要手动调用 queryUploadResult 查询结果
    */
   asyncMode?: boolean
+  /** 取消信号：中断分片上传 */
+  signal?: AbortSignal
+  /** 续传会话：提供后跳过 upload_request，沿用原会话继续上传 */
+  resumeSession?: IUploadSession
+  /** 已上传完成的分片号（从 1 开始），续传时跳过 */
+  completedParts?: number[]
+  /** 上传会话就绪回调（可持久化用于断点续传） */
+  onSession?: (session: IUploadSession) => void
+  /** 单个分片上传成功回调（可持久化已上传分片） */
+  onPartComplete?: (partNumber: number) => void
 }
 
 /** 上传文件返回结果 */
@@ -102,4 +128,6 @@ export interface IUploadFileResult {
   preuploadID?: string
   /** 是否异步模式 */
   isAsync?: boolean
+  /** 本次上传的会话（用于断点续传） */
+  session?: IUploadSession
 }
