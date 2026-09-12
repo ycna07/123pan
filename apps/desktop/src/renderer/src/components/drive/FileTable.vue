@@ -509,7 +509,10 @@ function onRootDrop(event: DragEvent): void {
       :columns="columns"
       :get-row-id="getRowId"
       :row-selection-options="{ enableRowSelection: true }"
-      :ui="{ tr: 'cursor-pointer' }"
+      :ui="{
+        base: 'border-separate border-spacing-0',
+        tr: 'cursor-pointer transition-shadow duration-150 hover:shadow-md'
+      }"
       sticky
       class="min-h-0 flex-1"
       @click="onContainerClick"
@@ -545,7 +548,11 @@ function onRootDrop(event: DragEvent): void {
             class="size-5 shrink-0"
             :class="row.original.type === 'folder' ? 'text-primary' : 'text-muted'"
           />
-          <span class="truncate font-medium text-highlighted">{{ row.original.name }}</span>
+          <span
+            class="truncate font-medium text-highlighted transition-colors hover:text-primary hover:underline underline-offset-4"
+          >
+            {{ row.original.name }}
+          </span>
           <UIcon
             v-if="row.original.starred"
             name="i-lucide-star"
