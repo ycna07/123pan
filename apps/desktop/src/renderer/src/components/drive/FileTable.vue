@@ -3,7 +3,7 @@ import { computed, h, onBeforeUnmount, onMounted, ref, resolveComponent, watch }
 import type { DropdownMenuItem, TableColumn } from '@nuxt/ui'
 import { useToast } from '@nuxt/ui/composables'
 import type { DriveFileType, DriveItem } from '@123pan/shared-types'
-import { formatDate, formatSize } from '@renderer/utils/format'
+import { formatDate, formatFolderSize, formatSize } from '@renderer/utils/format'
 
 const props = defineProps<{
   items: DriveItem[]
@@ -589,7 +589,11 @@ function onRootDrop(event: DragEvent): void {
           v-on="rowHandlers(row.original)"
         >
           <span class="tabular-nums">
-            {{ formatSize(row.original.size) }}
+            {{
+              row.original.type === 'folder'
+                ? formatFolderSize(row.original.size)
+                : formatSize(row.original.size)
+            }}
           </span>
         </div>
       </template>
