@@ -53,6 +53,9 @@ importers:
       '@nuxt/ui':
         specifier: ^4.11.0
         version: 4.11.0(063aac3df06fa62674f33bc199c8c8d4)
+      '@vueuse/core':
+        specifier: ^14.4.0
+        version: 14.4.0
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4

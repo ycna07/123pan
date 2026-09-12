@@ -532,7 +532,7 @@ function onRootDrop(event: DragEvent): void {
       :ui="{
         base: 'border-separate border-spacing-0',
         tbody:
-          '[&>tr]:cursor-pointer [&>tr]:transition [&>tr:hover]:shadow-[0_0_10px_rgba(0,0,0,0.12)] [&>tr:hover>td]:bg-elevated/50 [&>tr:hover>td:first-child]:rounded-s-lg [&>tr:hover>td:last-child]:rounded-e-lg'
+          '[&>tr]:cursor-pointer [&>tr]:transition [&>tr:hover]:shadow-[0_0_10px_rgba(0,0,0,0.12)] dark:[&>tr:hover]:shadow-[0_0_12px_rgba(255,255,255,0.12)] [&>tr:hover>td]:bg-elevated/50 [&>tr:hover>td:first-child]:rounded-s-lg [&>tr:hover>td:last-child]:rounded-e-lg'
       }"
       sticky
       class="min-h-0 flex-1"

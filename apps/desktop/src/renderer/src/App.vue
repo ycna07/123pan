@@ -3,11 +3,14 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useToast } from '@nuxt/ui/composables'
 import type { AuthStatus, DriveItem, StorageUsage } from '@123pan/shared-types'
 import { formatSize } from '@renderer/utils/format'
+import { useAppColorMode } from '@renderer/utils/theme'
 import FileTable from '@renderer/components/drive/FileTable.vue'
 import DownloadManager from '@renderer/components/drive/DownloadManager.vue'
 import TrashView from '@renderer/components/drive/TrashView.vue'
 
 const toast = useToast()
+
+const { isDark, toggle: toggleColorMode } = useAppColorMode()
 
 const COPY_FEEDBACK_DURATION = 1500
 function notifyCopied(title: string, options: { icon?: string; description?: string } = {}): void {
@@ -982,6 +985,14 @@ onBeforeUnmount(() => {
           <span class="hidden max-w-40 truncate text-sm text-muted md:block">
             {{ nickname || account }}
           </span>
+          <UButton
+            :icon="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"
+            size="sm"
+            color="neutral"
+            variant="ghost"
+            :aria-label="isDark ? '切换到浅色模式' : '切换到深色模式'"
+            @click="toggleColorMode"
+          />
           <UDropdownMenu :items="userMenuItems" :content="{ align: 'end' }">
             <UAvatar
               :src="avatar || undefined"

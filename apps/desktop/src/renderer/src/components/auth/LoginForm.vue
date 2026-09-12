@@ -2,9 +2,12 @@
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { FormError } from '@nuxt/ui'
 import type { AuthStatus, QrLoginState } from '@123pan/shared-types'
+import { useAppColorMode } from '@renderer/utils/theme'
 import QRCode from 'qrcode'
 
 const emit = defineEmits<{ authenticated: [status: AuthStatus] }>()
+
+const { isDark, toggle: toggleColorMode } = useAppColorMode()
 
 const tabItems = [
   { label: '密码登录', slot: 'password' as const, value: 'password' as const },
@@ -109,7 +112,16 @@ async function submitLogin(action: () => Promise<AuthStatus>): Promise<void> {
 </script>
 
 <template>
-  <div class="flex h-screen items-center justify-center bg-default px-4">
+  <div class="relative flex h-screen items-center justify-center bg-default px-4">
+    <UButton
+      :icon="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"
+      color="neutral"
+      variant="ghost"
+      size="sm"
+      class="absolute top-4 right-4"
+      :aria-label="isDark ? '切换到浅色模式' : '切换到深色模式'"
+      @click="toggleColorMode"
+    />
     <div class="w-full max-w-sm rounded-lg border border-default bg-elevated/40 p-8">
       <div class="mb-6 flex flex-col items-center gap-2">
         <UIcon name="i-lucide-cloud" class="size-10 text-primary" />
