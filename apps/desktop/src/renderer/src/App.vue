@@ -123,9 +123,7 @@ function applyAuthStatus(status: AuthStatus): void {
 /** 去掉 Electron IPC 包装（Error invoking remote method '...': Error: xxx），只保留业务消息 */
 function readableError(error: unknown, fallback: string): string {
   const raw = error instanceof Error ? error.message : String(error ?? '')
-  const cleaned = raw
-    .replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/, '')
-    .trim()
+  const cleaned = raw.replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/, '').trim()
   return cleaned || fallback
 }
 
@@ -1031,280 +1029,291 @@ onBeforeUnmount(() => {
           }
         "
       >
-        <UCard>
-          <template #header>
-            <div class="flex items-center gap-2">
-              <UIcon name="i-lucide-link-2" class="size-4 text-primary" />
-              <span class="font-medium text-highlighted">
-                {{ shareResult ? '分享已创建' : '创建分享' }}
-              </span>
-            </div>
-          </template>
+        <template #content>
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-2">
+                <UIcon name="i-lucide-link-2" class="size-4 text-primary" />
+                <span class="font-medium text-highlighted">
+                  {{ shareResult ? '分享已创建' : '创建分享' }}
+                </span>
+              </div>
+            </template>
 
-          <div v-if="shareResult" class="flex flex-col gap-3">
-            <p class="text-sm text-muted">链接已复制到剪贴板，也可手动复制：</p>
-            <div class="flex items-center gap-2">
-              <UInput :model-value="shareResult.url" readonly class="flex-1 font-mono text-xs" />
-              <UButton
-                icon="i-lucide-copy"
-                color="neutral"
-                variant="outline"
-                @click="copyShareResult"
-              >
-                复制
-              </UButton>
-            </div>
-            <p v-if="shareResult.sharePwd" class="text-xs text-muted">
-              提取码：<span class="font-mono text-highlighted">{{ shareResult.sharePwd }}</span>
-            </p>
-            <p class="text-xs text-muted">
-              共 {{ shareItems.length }} 项 ·
-              {{ shareExpire === 0 ? '永久有效' : `${shareExpire} 天有效` }}
-            </p>
-          </div>
-
-          <div v-else class="flex flex-col gap-4">
-            <div
-              class="rounded-lg border border-default bg-elevated/50 px-3 py-2 text-xs text-muted"
-            >
-              分享 {{ shareItems.length }} 项：{{
-                shareItems
-                  .map((item) => item.name)
-                  .join('、')
-                  .slice(0, 60)
-              }}{{ shareItems.map((item) => item.name).join('、').length > 60 ? '…' : '' }}
-            </div>
-            <UFormField label="分享名称">
-              <UInput
-                v-model="shareName"
-                placeholder="分享名称"
-                size="lg"
-                maxlength="30"
-                class="w-full"
-              />
-            </UFormField>
-            <UFormField label="有效期">
-              <USelect v-model="shareExpire" :items="shareExpireOptions" size="lg" class="w-full" />
-            </UFormField>
-            <UFormField label="提取码（可选）">
-              <div class="flex w-full gap-2">
-                <UInput
-                  v-model="sharePwd"
-                  placeholder="留空则无提取码"
-                  size="lg"
-                  maxlength="10"
-                  class="flex-1"
-                />
+            <div v-if="shareResult" class="flex flex-col gap-3">
+              <p class="text-sm text-muted">链接已复制到剪贴板，也可手动复制：</p>
+              <div class="flex items-center gap-2">
+                <UInput :model-value="shareResult.url" readonly class="flex-1 font-mono text-xs" />
                 <UButton
-                  icon="i-lucide-dices"
+                  icon="i-lucide-copy"
                   color="neutral"
                   variant="outline"
-                  size="lg"
-                  aria-label="随机生成提取码"
-                  @click="generateSharePwd"
+                  @click="copyShareResult"
                 >
-                  随机
+                  复制
                 </UButton>
               </div>
-            </UFormField>
-          </div>
-
-          <template #footer>
-            <div class="flex justify-end gap-2">
-              <template v-if="shareResult">
-                <UButton @click="closeShareDialog">完成</UButton>
-              </template>
-              <template v-else>
-                <UButton color="neutral" variant="ghost" @click="closeShareDialog">取消</UButton>
-                <UButton
-                  icon="i-lucide-link-2"
-                  :loading="creatingShare"
-                  :disabled="shareItems.length === 0"
-                  @click="confirmShare"
-                >
-                  创建并复制链接
-                </UButton>
-              </template>
+              <p v-if="shareResult.sharePwd" class="text-xs text-muted">
+                提取码：<span class="font-mono text-highlighted">{{ shareResult.sharePwd }}</span>
+              </p>
+              <p class="text-xs text-muted">
+                共 {{ shareItems.length }} 项 ·
+                {{ shareExpire === 0 ? '永久有效' : `${shareExpire} 天有效` }}
+              </p>
             </div>
-          </template>
-        </UCard>
+
+            <div v-else class="flex flex-col gap-4">
+              <div
+                class="rounded-lg border border-default bg-elevated/50 px-3 py-2 text-xs text-muted"
+              >
+                分享 {{ shareItems.length }} 项：{{
+                  shareItems
+                    .map((item) => item.name)
+                    .join('、')
+                    .slice(0, 60)
+                }}{{ shareItems.map((item) => item.name).join('、').length > 60 ? '…' : '' }}
+              </div>
+              <UFormField label="分享名称">
+                <UInput
+                  v-model="shareName"
+                  placeholder="分享名称"
+                  size="lg"
+                  maxlength="30"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField label="有效期">
+                <USelect
+                  v-model="shareExpire"
+                  :items="shareExpireOptions"
+                  size="lg"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField label="提取码（可选）">
+                <div class="flex w-full gap-2">
+                  <UInput
+                    v-model="sharePwd"
+                    placeholder="留空则无提取码"
+                    size="lg"
+                    maxlength="10"
+                    class="flex-1"
+                  />
+                  <UButton
+                    icon="i-lucide-dices"
+                    color="neutral"
+                    variant="outline"
+                    size="lg"
+                    aria-label="随机生成提取码"
+                    @click="generateSharePwd"
+                  >
+                    随机
+                  </UButton>
+                </div>
+              </UFormField>
+            </div>
+
+            <template #footer>
+              <div class="flex justify-end gap-2">
+                <template v-if="shareResult">
+                  <UButton @click="closeShareDialog">完成</UButton>
+                </template>
+                <template v-else>
+                  <UButton color="neutral" variant="ghost" @click="closeShareDialog">取消</UButton>
+                  <UButton
+                    icon="i-lucide-link-2"
+                    :loading="creatingShare"
+                    :disabled="shareItems.length === 0"
+                    @click="confirmShare"
+                  >
+                    创建并复制链接
+                  </UButton>
+                </template>
+              </div>
+            </template>
+          </UCard>
+        </template>
       </UModal>
 
       <UModal v-model:open="openShareOpen" :ui="{ content: 'max-w-2xl' }">
-        <UCard>
-          <template #header>
-            <div class="flex items-center gap-2">
-              <UIcon name="i-lucide-link-2" class="size-4 text-primary" />
-              <span class="font-medium text-highlighted">打开分享链接</span>
-            </div>
-          </template>
+        <template #content>
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-2">
+                <UIcon name="i-lucide-link-2" class="size-4 text-primary" />
+                <span class="font-medium text-highlighted">打开分享链接</span>
+              </div>
+            </template>
 
-          <div class="flex flex-col gap-4">
-            <div class="flex items-end gap-2">
-              <UFormField label="分享链接或分享码" class="flex-1">
-                <UInput
-                  v-model="openShareLink"
-                  placeholder="https://www.123pan.com/s/xxxx?pwd=xxxx 或分享码"
-                  size="lg"
-                  class="w-full"
-                  @keydown.enter="startParseShare"
-                />
-              </UFormField>
-              <UButton
-                icon="i-lucide-search"
-                size="lg"
-                :loading="openShareLoading"
-                @click="startParseShare"
-              >
-                解析
-              </UButton>
-            </div>
-
-            <UAlert
-              v-if="openShareError"
-              color="error"
-              variant="soft"
-              icon="i-lucide-triangle-alert"
-              :title="openShareError"
-            />
-
-            <div v-if="openShareResult" class="flex flex-col gap-2">
-              <div class="flex min-w-0 items-center gap-1 text-xs text-muted">
-                <button
-                  type="button"
-                  class="shrink-0 rounded px-1 py-0.5 hover:bg-elevated hover:text-highlighted"
-                  @click="goSharePath(-1)"
-                >
-                  分享根目录
-                </button>
-                <template v-for="(part, index) in openSharePath" :key="part.id">
-                  <UIcon name="i-lucide-chevron-right" class="size-3 shrink-0 text-dimmed" />
-                  <button
-                    type="button"
-                    class="max-w-40 truncate rounded px-1 py-0.5 hover:bg-elevated hover:text-highlighted"
-                    @click="goSharePath(index)"
-                  >
-                    {{ part.name }}
-                  </button>
-                </template>
+            <div class="flex flex-col gap-4">
+              <div class="flex items-end gap-2">
+                <UFormField label="分享链接或分享码" class="flex-1">
+                  <UInput
+                    v-model="openShareLink"
+                    placeholder="https://www.123pan.com/s/xxxx?pwd=xxxx 或分享码"
+                    size="lg"
+                    class="w-full"
+                    @keydown.enter="startParseShare"
+                  />
+                </UFormField>
                 <UButton
-                  class="ml-auto"
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  icon="i-lucide-copy"
-                  @click="copyParsedShareLink"
+                  icon="i-lucide-search"
+                  size="lg"
+                  :loading="openShareLoading"
+                  @click="startParseShare"
                 >
-                  复制链接
+                  解析
                 </UButton>
               </div>
 
-              <div class="rounded-lg border border-default">
-                <div
-                  class="flex items-center gap-3 border-b border-default px-3 py-2 text-xs text-muted"
-                >
-                  <UCheckbox
-                    :model-value="openShareAllSelected"
-                    :indeterminate="openShareSomeSelected"
-                    @update:model-value="
-                      (value: boolean | 'indeterminate') => toggleAllShareItems(Boolean(value))
-                    "
-                  />
-                  <span>共 {{ openShareResult.items.length }} 项</span>
-                  <span v-if="openShareResult.sharePwd" class="ml-auto">
-                    提取码 {{ openShareResult.sharePwd }}
-                  </span>
+              <UAlert
+                v-if="openShareError"
+                color="error"
+                variant="soft"
+                icon="i-lucide-triangle-alert"
+                :title="openShareError"
+              />
+
+              <div v-if="openShareResult" class="flex flex-col gap-2">
+                <div class="flex min-w-0 items-center gap-1 text-xs text-muted">
+                  <button
+                    type="button"
+                    class="shrink-0 rounded px-1 py-0.5 hover:bg-elevated hover:text-highlighted"
+                    @click="goSharePath(-1)"
+                  >
+                    分享根目录
+                  </button>
+                  <template v-for="(part, index) in openSharePath" :key="part.id">
+                    <UIcon name="i-lucide-chevron-right" class="size-3 shrink-0 text-dimmed" />
+                    <button
+                      type="button"
+                      class="max-w-40 truncate rounded px-1 py-0.5 hover:bg-elevated hover:text-highlighted"
+                      @click="goSharePath(index)"
+                    >
+                      {{ part.name }}
+                    </button>
+                  </template>
+                  <UButton
+                    class="ml-auto"
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    icon="i-lucide-copy"
+                    @click="copyParsedShareLink"
+                  >
+                    复制链接
+                  </UButton>
                 </div>
-                <div class="max-h-64 divide-y divide-default overflow-y-auto">
+
+                <div class="rounded-lg border border-default">
                   <div
-                    v-for="item in openShareResult.items"
-                    :key="item.id"
-                    class="flex items-center gap-3 px-3 py-2"
+                    class="flex items-center gap-3 border-b border-default px-3 py-2 text-xs text-muted"
                   >
                     <UCheckbox
-                      :model-value="!!openShareSelected[item.id]"
+                      :model-value="openShareAllSelected"
+                      :indeterminate="openShareSomeSelected"
                       @update:model-value="
-                        (value: boolean | 'indeterminate') =>
-                          toggleShareItem(item.id, Boolean(value))
+                        (value: boolean | 'indeterminate') => toggleAllShareItems(Boolean(value))
                       "
                     />
-                    <UIcon
-                      :name="item.type === 'folder' ? 'i-lucide-folder' : 'i-lucide-file'"
-                      class="size-4 shrink-0"
-                      :class="item.type === 'folder' ? 'text-primary' : 'text-muted'"
-                    />
-                    <button
-                      v-if="item.type === 'folder'"
-                      type="button"
-                      class="min-w-0 flex-1 truncate text-left text-sm text-highlighted hover:underline"
-                      @click="openShareFolder(item)"
-                    >
-                      {{ item.name }}
-                    </button>
-                    <span v-else class="min-w-0 flex-1 truncate text-sm text-highlighted">
-                      {{ item.name }}
+                    <span>共 {{ openShareResult.items.length }} 项</span>
+                    <span v-if="openShareResult.sharePwd" class="ml-auto">
+                      提取码 {{ openShareResult.sharePwd }}
                     </span>
-                    <span class="shrink-0 text-xs text-muted">
-                      {{ item.type === 'folder' ? '-' : formatSize(item.size) }}
-                    </span>
-                    <UButton
-                      v-if="item.type === 'folder'"
-                      icon="i-lucide-folder-open"
-                      size="xs"
-                      color="neutral"
-                      variant="ghost"
-                      aria-label="打开文件夹"
-                      @click="openShareFolder(item)"
-                    />
-                    <UButton
-                      v-else
-                      icon="i-lucide-download"
-                      size="xs"
-                      color="neutral"
-                      variant="ghost"
-                      aria-label="下载"
-                      @click="downloadParsedShare(item)"
-                    />
                   </div>
-                  <div
-                    v-if="openShareResult.items.length === 0"
-                    class="px-3 py-6 text-center text-sm text-muted"
-                  >
-                    此文件夹为空
+                  <div class="max-h-64 divide-y divide-default overflow-y-auto">
+                    <div
+                      v-for="item in openShareResult.items"
+                      :key="item.id"
+                      class="flex items-center gap-3 px-3 py-2"
+                    >
+                      <UCheckbox
+                        :model-value="!!openShareSelected[item.id]"
+                        @update:model-value="
+                          (value: boolean | 'indeterminate') =>
+                            toggleShareItem(item.id, Boolean(value))
+                        "
+                      />
+                      <UIcon
+                        :name="item.type === 'folder' ? 'i-lucide-folder' : 'i-lucide-file'"
+                        class="size-4 shrink-0"
+                        :class="item.type === 'folder' ? 'text-primary' : 'text-muted'"
+                      />
+                      <button
+                        v-if="item.type === 'folder'"
+                        type="button"
+                        class="min-w-0 flex-1 truncate text-left text-sm text-highlighted hover:underline"
+                        @click="openShareFolder(item)"
+                      >
+                        {{ item.name }}
+                      </button>
+                      <span v-else class="min-w-0 flex-1 truncate text-sm text-highlighted">
+                        {{ item.name }}
+                      </span>
+                      <span class="shrink-0 text-xs text-muted">
+                        {{ item.type === 'folder' ? '-' : formatSize(item.size) }}
+                      </span>
+                      <UButton
+                        v-if="item.type === 'folder'"
+                        icon="i-lucide-folder-open"
+                        size="xs"
+                        color="neutral"
+                        variant="ghost"
+                        aria-label="打开文件夹"
+                        @click="openShareFolder(item)"
+                      />
+                      <UButton
+                        v-else
+                        icon="i-lucide-download"
+                        size="xs"
+                        color="neutral"
+                        variant="ghost"
+                        aria-label="下载"
+                        @click="downloadParsedShare(item)"
+                      />
+                    </div>
+                    <div
+                      v-if="openShareResult.items.length === 0"
+                      class="px-3 py-6 text-center text-sm text-muted"
+                    >
+                      此文件夹为空
+                    </div>
                   </div>
                 </div>
               </div>
+
+              <p v-else-if="!openShareError" class="text-xs text-muted">
+                粘贴分享链接后点击「解析」，可浏览分享内容并转存到「{{ currentFolderName }}」。
+              </p>
             </div>
 
-            <p v-else-if="!openShareError" class="text-xs text-muted">
-              粘贴分享链接后点击「解析」，可浏览分享内容并转存到「{{ currentFolderName }}」。
-            </p>
-          </div>
-
-          <template #footer>
-            <div class="flex w-full justify-end gap-2">
-              <UButton color="neutral" variant="ghost" @click="openShareOpen = false">关闭</UButton>
-              <UButton
-                icon="i-lucide-folder-input"
-                color="neutral"
-                variant="outline"
-                :disabled="openShareSelectedIds.length === 0"
-                @click="transferParsedShare(openShareSelectedIds)"
-              >
-                转存选中{{
-                  openShareSelectedIds.length ? `（${openShareSelectedIds.length}）` : ''
-                }}
-              </UButton>
-              <UButton
-                icon="i-lucide-folder-input"
-                :disabled="!openShareResult || openShareResult.items.length === 0"
-                @click="transferParsedShare()"
-              >
-                全部转存
-              </UButton>
-            </div>
-          </template>
-        </UCard>
+            <template #footer>
+              <div class="flex w-full justify-end gap-2">
+                <UButton color="neutral" variant="ghost" @click="openShareOpen = false"
+                  >关闭</UButton
+                >
+                <UButton
+                  icon="i-lucide-folder-input"
+                  color="neutral"
+                  variant="outline"
+                  :disabled="openShareSelectedIds.length === 0"
+                  @click="transferParsedShare(openShareSelectedIds)"
+                >
+                  转存选中{{
+                    openShareSelectedIds.length ? `（${openShareSelectedIds.length}）` : ''
+                  }}
+                </UButton>
+                <UButton
+                  icon="i-lucide-folder-input"
+                  :disabled="!openShareResult || openShareResult.items.length === 0"
+                  @click="transferParsedShare()"
+                >
+                  全部转存
+                </UButton>
+              </div>
+            </template>
+          </UCard>
+        </template>
       </UModal>
     </div>
 
