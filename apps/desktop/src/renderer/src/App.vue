@@ -33,6 +33,47 @@ const loading = ref(false)
 const usage = ref<StorageUsage | null>(null)
 const activeView = ref<'files' | 'downloads' | 'trash'>('files')
 
+const SIDEBAR_DEFAULT_WIDTH = 240
+const SIDEBAR_MIN_WIDTH = 160
+const SIDEBAR_MAX_WIDTH = 480
+const SIDEBAR_WIDTH_KEY = '123pan-sidebar-width'
+
+function loadSidebarWidth(): number {
+  const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
+  return Number.isFinite(stored) && stored >= SIDEBAR_MIN_WIDTH && stored <= SIDEBAR_MAX_WIDTH
+    ? stored
+    : SIDEBAR_DEFAULT_WIDTH
+}
+
+const sidebarWidth = ref(loadSidebarWidth())
+const sidebarResizing = ref(false)
+
+function startSidebarResize(event: PointerEvent): void {
+  event.preventDefault()
+  const startX = event.clientX
+  const startWidth = sidebarWidth.value
+  sidebarResizing.value = true
+
+  const onMove = (moveEvent: PointerEvent): void => {
+    const next = startWidth + (moveEvent.clientX - startX)
+    sidebarWidth.value = Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, next))
+  }
+  const onUp = (): void => {
+    sidebarResizing.value = false
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth.value))
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+  }
+
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp)
+}
+
+function resetSidebarWidth(): void {
+  sidebarWidth.value = SIDEBAR_DEFAULT_WIDTH
+  localStorage.setItem(SIDEBAR_WIDTH_KEY, String(SIDEBAR_DEFAULT_WIDTH))
+}
+
 const viewTitle = computed(
   () =>
     ({
@@ -803,16 +844,19 @@ onBeforeUnmount(() => {
     <LoginForm v-if="authed === false" @authenticated="handleAuthenticated" />
 
     <div v-else-if="authed === true" class="flex h-screen bg-default text-default">
-      <aside class="hidden w-60 shrink-0 flex-col border-r border-default bg-elevated/50 lg:flex">
+      <aside
+        class="relative hidden shrink-0 flex-col border-r border-default bg-elevated/50 lg:flex"
+        :style="{ width: `${sidebarWidth}px` }"
+      >
         <div class="flex items-center gap-2 px-4 py-4">
-          <UIcon name="i-lucide-cloud" class="size-6 text-primary" />
-          <span class="text-base font-semibold text-highlighted">123云盘</span>
+          <UIcon name="i-lucide-cloud" class="size-6 shrink-0 text-primary" />
+          <span class="truncate text-base font-semibold text-highlighted">123云盘</span>
         </div>
         <UNavigationMenu :items="navItems" orientation="vertical" class="flex-1 px-2" />
         <div class="border-t border-default px-4 py-4">
-          <div class="flex items-center justify-between text-xs text-muted">
-            <span>存储空间</span>
-            <span class="tabular-nums">
+          <div class="flex items-center justify-between gap-2 text-xs text-muted">
+            <span class="shrink-0">存储空间</span>
+            <span class="truncate tabular-nums">
               {{ usage ? `${formatSize(usage.used)} / ${formatSize(usage.permanent)}` : '加载中…' }}
             </span>
           </div>
@@ -820,6 +864,17 @@ onBeforeUnmount(() => {
             :model-value="usage ? Math.min(100, (usage.used / usage.permanent) * 100) : 0"
             size="sm"
             class="mt-2"
+          />
+        </div>
+        <div
+          class="group absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none select-none"
+          :class="sidebarResizing ? 'bg-primary/40' : ''"
+          title="拖动调整侧栏宽度，双击恢复默认"
+          @pointerdown="startSidebarResize"
+          @dblclick="resetSidebarWidth"
+        >
+          <div
+            class="mx-auto h-full w-px bg-transparent transition-colors group-hover:bg-primary/60"
           />
         </div>
       </aside>
