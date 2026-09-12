@@ -7,6 +7,7 @@ import type {
   DownloadProgress,
   DownloadTask,
   QrLoginState,
+  ShareRecord,
   StorageUsage,
   UploadProgress,
   UploadTask
@@ -45,6 +46,13 @@ const api = {
   ): Promise<{ url: string; shareKey: string; sharePwd?: string }> =>
     ipcRenderer.invoke('share:create', fileIds, name, expire, pwd),
   copyText: (text: string): Promise<boolean> => ipcRenderer.invoke('clipboard:write', text),
+  listShares: (params?: {
+    next?: number | string
+    searchData?: string
+  }): Promise<{ next: number | null; shares: ShareRecord[] }> =>
+    ipcRenderer.invoke('share:list', params),
+  deleteShares: (shareIds: string[]): Promise<string[]> =>
+    ipcRenderer.invoke('share:delete', shareIds),
   parseShare: (link: string, parentFolderId?: string | null): Promise<unknown> =>
     ipcRenderer.invoke('share:parse', link, parentFolderId),
   transferShare: (

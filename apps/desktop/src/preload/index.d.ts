@@ -8,6 +8,7 @@ import type {
   LoginCredentials,
   QrLoginState,
   ReuseExportResult,
+  ShareRecord,
   StorageUsage,
   UploadProgress,
   UploadTask
@@ -39,6 +40,11 @@ declare global {
         pwd?: string
       ): Promise<{ url: string; shareKey: string; sharePwd?: string }>
       copyText(text: string): Promise<boolean>
+      listShares(params?: {
+        next?: number | string
+        searchData?: string
+      }): Promise<{ next: number | null; shares: ShareRecord[] }>
+      deleteShares(shareIds: string[]): Promise<string[]>
       parseShare(
         link: string,
         parentFolderId?: string | null

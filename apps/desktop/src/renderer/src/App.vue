@@ -8,6 +8,7 @@ import { useAppColorMode } from '@renderer/utils/theme'
 import FileTable from '@renderer/components/drive/FileTable.vue'
 import DownloadManager from '@renderer/components/drive/DownloadManager.vue'
 import TrashView from '@renderer/components/drive/TrashView.vue'
+import ShareView from '@renderer/components/drive/ShareView.vue'
 
 const toast = useToast()
 
@@ -31,7 +32,7 @@ const search = ref('')
 const items = ref<DriveItem[]>([])
 const loading = ref(false)
 const usage = ref<StorageUsage | null>(null)
-const activeView = ref<'files' | 'downloads' | 'trash'>('files')
+const activeView = ref<'files' | 'downloads' | 'trash' | 'shares'>('files')
 
 const SIDEBAR_DEFAULT_WIDTH = 240
 const SIDEBAR_MIN_WIDTH = 160
@@ -79,7 +80,8 @@ const viewTitle = computed(
     ({
       files: '全部文件',
       downloads: '传输管理',
-      trash: '回收站'
+      trash: '回收站',
+      shares: '我的分享'
     })[activeView.value]
 )
 /** 进行中的下载（任务 id -> 状态），驱动顶部细进度条 */
@@ -139,7 +141,10 @@ const navItems = computed(() => [
   {
     label: '我的分享',
     icon: 'i-lucide-link-2',
-    onSelect: () => toast.add({ title: '我的分享（开发中）', color: 'info' })
+    active: activeView.value === 'shares',
+    onSelect: () => {
+      activeView.value = 'shares'
+    }
   },
   {
     label: '回收站',
@@ -600,6 +605,12 @@ function resetOpenShare(): void {
 function openShareDialog(): void {
   resetOpenShare()
   openShareOpen.value = true
+}
+
+function openShareWithLink(link: string): void {
+  openShareLink.value = link
+  openShareOpen.value = true
+  void parseShare()
 }
 
 async function parseShare(parentFolderId?: string | null): Promise<void> {
@@ -1133,6 +1144,9 @@ onBeforeUnmount(() => {
         </div>
         <div v-else-if="activeView === 'trash'" class="min-h-0 flex-1 overflow-y-auto p-4">
           <TrashView />
+        </div>
+        <div v-else-if="activeView === 'shares'" class="min-h-0 flex-1 overflow-y-auto p-4">
+          <ShareView @open-share="openShareWithLink" />
         </div>
         <div v-else class="min-h-0 flex-1 overflow-y-auto p-4">
           <DownloadManager />

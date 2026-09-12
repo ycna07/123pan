@@ -16,6 +16,7 @@ declare module 'vue' {
     LoginForm: typeof import('./src/components/auth/LoginForm.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    ShareView: typeof import('./src/components/drive/ShareView.vue')['default']
     TrashView: typeof import('./src/components/drive/TrashView.vue')['default']
     UAlert: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_063aac3df06fa62674f33bc199c8c8d4/node_modules/@nuxt/ui/dist/runtime/components/Alert.vue')['default']
     UApp: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@4.11.0_063aac3df06fa62674f33bc199c8c8d4/node_modules/@nuxt/ui/dist/runtime/components/App.vue')['default']

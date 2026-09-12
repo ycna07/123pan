@@ -59,6 +59,20 @@ export interface ReuseExportResult {
   json: string
 }
 
+export interface ShareRecord {
+  id: string
+  name: string
+  key: string
+  url: string
+  pwd: string
+  expired: boolean
+  expireAt: string
+  createdAt: string
+  previewCount: number
+  downloadCount: number
+  saveCount: number
+}
+
 export type DownloadTaskStatus = 'downloading' | 'completed' | 'failed' | 'canceled'
 
 export interface DownloadTask {

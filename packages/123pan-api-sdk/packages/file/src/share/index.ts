@@ -11,6 +11,7 @@ import type {
   CreatePaidShareResponse,
   GetShareFilesParams,
   GetShareFilesResponse,
+  GetShareListResponse,
   ShareFileItem,
   TransferShareParams
 } from './types'
@@ -261,6 +262,52 @@ export class ShareModule {
         ? { taskId: Number(data.taskId ?? data.task_id ?? 0), mode: Number(data.mode ?? 0) }
         : null
     }
+  }
+
+  /**
+   * 获取我的分享列表（免费分享）
+   * @param params.next 下一页起始 id，首次传 0；返回 Next 为 -1 表示最后一页
+   * @param params.searchData 搜索关键字（选填）
+   */
+  async getShareList(
+    params: {
+      /** 分页大小，最多 100 */
+      limit?: number
+      /** 下一页起始 id，首次传 0 */
+      next?: number | string
+      /** 搜索关键字（选填） */
+      searchData?: string
+    } = {}
+  ): Promise<ApiResponse<GetShareListResponse>> {
+    const query: Record<string, unknown> = {
+      driveId: 0,
+      limit: Math.min(params.limit ?? 50, 100),
+      next: params.next ?? 0,
+      orderBy: 'fileId',
+      orderDirection: 'desc',
+      event: 'shareListFile',
+      Page: 1
+    }
+    if (params.searchData) {
+      query.SearchData = params.searchData
+    }
+    return this.httpClient.get<GetShareListResponse>('/api/share/list', query)
+  }
+
+  /**
+   * 取消（删除）分享
+   * @param shareIds 要取消的分享 id 列表
+   */
+  async deleteShares(shareIds: Array<number | string>): Promise<ApiResponse<unknown>> {
+    if (shareIds.length === 0) {
+      throw new Error('请选择要取消的分享')
+    }
+    return this.httpClient.post('/api/share/delete', {
+      shareInfoList: shareIds.map((id) => ({ shareId: id })),
+      driveId: 0,
+      event: 'shareCancel',
+      isPayShare: false
+    })
   }
 }
 

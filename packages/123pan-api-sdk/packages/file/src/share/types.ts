@@ -115,3 +115,39 @@ export interface TransferShareParams {
   /** 转存到的目标目录 id（自己的网盘），根目录为 0 */
   targetParentId: number
 }
+
+/** 分享列表中单条分享 */
+export interface ShareListItem {
+  /** 分享 id */
+  ShareId: number
+  /** 分享码（短链后缀） */
+  ShareKey: string
+  /** 分享名称 */
+  ShareName: string
+  /** 提取码，空字符串表示无提取码 */
+  SharePwd: string
+  /** 过期时间（ISO 字符串） */
+  Expiration: string
+  /** 是否已过期 */
+  Expired: boolean
+  /** 创建时间（ISO 字符串） */
+  CreateAt: string
+  /** 浏览次数 */
+  PreviewCount: number
+  /** 下载次数 */
+  DownloadCount: number
+  /** 转存次数 */
+  SaveCount: number
+  /** 分享的文件 id 列表（逗号分隔） */
+  FileIdList: string
+  /** 分享链接 */
+  shareLinkList?: { list?: string[]; standBy?: string }
+}
+
+/** 获取我的分享列表响应 */
+export interface GetShareListResponse {
+  /** -1 表示最后一页 */
+  Next: string | number
+  /** 分享列表 */
+  InfoList: ShareListItem[]
+}

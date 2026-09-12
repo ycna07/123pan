@@ -278,6 +278,11 @@ function registerHandler<T extends unknown[]>(
 }
 
 export function registerDriveHandlers(): void {
+  registerHandler('clipboard:write', (_event, text: string) => {
+    clipboard.writeText(String(text ?? ''))
+    return true
+  })
+
   registerHandler('drive:list', (_event, folderId: string | null) => {
     return fetchFolderItems(toFolderId(folderId, '目录 ID'))
   })
@@ -465,6 +470,48 @@ export function registerDriveHandlers(): void {
       return { url, shareKey, ...(sharePwd ? { sharePwd } : {}) }
     }
   )
+
+  registerHandler(
+    'share:list',
+    async (_event, params?: { next?: number | string; searchData?: string }) => {
+      const sdk = getSdk()
+      if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+      const result = await sdk.file.share.getShareList({
+        limit: 100,
+        next: params?.next ?? 0,
+        ...(params?.searchData ? { searchData: params.searchData } : {})
+      })
+      const nextValue = Number(result.data.Next)
+      return {
+        next: Number.isFinite(nextValue) && nextValue !== -1 ? nextValue : null,
+        shares: result.data.InfoList.map((item) => ({
+          id: String(item.ShareId),
+          name: item.ShareName,
+          key: item.ShareKey,
+          url: `https://www.123pan.com/s/${item.ShareKey}${
+            item.SharePwd ? `?pwd=${item.SharePwd}` : ''
+          }`,
+          pwd: item.SharePwd ?? '',
+          expired: Boolean(item.Expired),
+          expireAt: item.Expiration,
+          createdAt: item.CreateAt,
+          previewCount: item.PreviewCount ?? 0,
+          downloadCount: item.DownloadCount ?? 0,
+          saveCount: item.SaveCount ?? 0
+        }))
+      }
+    }
+  )
+
+  registerHandler('share:delete', async (_event, shareIds: string[]) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    if (!Array.isArray(shareIds) || shareIds.length === 0) {
+      throw new Error('请选择要取消的分享')
+    }
+    await sdk.file.share.deleteShares(shareIds)
+    return shareIds.map((id) => String(id))
+  })
 
   registerHandler('share:parse', async (_event, link: string, parentFolderId?: string | null) => {
     const sdk = getSdk()
