@@ -134,6 +134,16 @@ export interface GetFileInfosResponse {
   list: FileDetailInfo[]
 }
 
+/** 文件/目录详情统计 */
+export interface FileDetailStatistics {
+  /** 文件数量 */
+  fileNum: number
+  /** 目录数量 */
+  dirNum: number
+  /** 总大小（字节） */
+  totalSize: number
+}
+
 export class FileModule {
   public readonly upload: UploadModule
   public readonly share: ShareModule
@@ -414,6 +424,22 @@ export class FileModule {
         fileList: (result.data?.InfoList || []).map(mapNormalFileItem)
       }
     }
+  }
+
+  /**
+   * 获取文件或目录的详情统计（文件数、目录数、总大小）。
+   * 目录会递归统计其下所有内容，因此可直接当作「文件夹大小」使用。
+   *
+   * @param params.fileID 文件或目录 ID
+   * @returns 统计结果，`totalSize` 为字节数
+   */
+  async getFileDetail(params: {
+    /** 文件或目录 ID */
+    fileID: number | string
+  }): Promise<ApiResponse<FileDetailStatistics>> {
+    return this.httpClient.get<FileDetailStatistics>('/api/file/detail', {
+      fileID: params.fileID
+    })
   }
 
   /**

@@ -50,6 +50,7 @@ const PAGE_SIZE = 100
 const MAX_PAGES = 20
 const REUSE_STEP_DELAY_MS = 150
 const MAX_EXPORT_FILES = 5000
+const FOLDER_SIZE_CONCURRENCY = 5
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -279,6 +280,29 @@ function registerHandler<T extends unknown[]>(
 export function registerDriveHandlers(): void {
   registerHandler('drive:list', (_event, folderId: string | null) => {
     return fetchFolderItems(toFolderId(folderId, '目录 ID'))
+  })
+
+  // 直接调用 /api/file/detail 获取目录递归大小，无需本地遍历目录树
+  registerHandler('drive:folder-sizes', async (_event, folderIds: string[]) => {
+    const sdk = getSdk()
+    if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+    if (!Array.isArray(folderIds) || folderIds.length === 0) return {}
+    const ids = [...new Set(folderIds.map(Number))].filter((id) => Number.isInteger(id) && id > 0)
+    const sizes: Record<string, number> = {}
+    let cursor = 0
+    const worker = async (): Promise<void> => {
+      while (cursor < ids.length) {
+        const id = ids[cursor++]
+        try {
+          const detail = await sdk.file.getFileDetail({ fileID: id })
+          sizes[String(id)] = detail.data.totalSize
+        } catch {
+          // 单个目录统计失败不影响其它目录
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(FOLDER_SIZE_CONCURRENCY, ids.length) }, worker))
+    return sizes
   })
 
   registerHandler('drive:trash:list', () => fetchTrashItems())

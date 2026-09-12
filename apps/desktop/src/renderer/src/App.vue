@@ -155,6 +155,7 @@ async function loadFolder(folderId: string | null): Promise<void> {
     const known = new Set(items.value.map((item) => item.id))
     items.value.push(...remote.filter((item) => !known.has(item.id)))
     loadedFolderKeys.add(key)
+    void loadFolderSizes(remote)
   } catch (error) {
     showError(error, '加载文件列表失败')
   } finally {
@@ -176,6 +177,26 @@ async function reloadFolder(folderId: string | null): Promise<void> {
   items.value = items.value.filter((item) => (item.parentId ?? '') !== key)
   loadedFolderKeys.delete(key)
   await loadFolder(folderId)
+}
+
+/** 目录大小由 /api/file/detail 直接返回，加载列表后异步回填，避免阻塞渲染 */
+async function loadFolderSizes(remote: DriveItem[]): Promise<void> {
+  const folderIds = remote.filter((item) => item.type === 'folder').map((item) => item.id)
+  if (folderIds.length === 0) return
+  try {
+    const sizes = await window.api.folderSizes(folderIds)
+    const hasUpdate = items.value.some(
+      (item) => item.type === 'folder' && sizes[item.id] !== undefined
+    )
+    if (!hasUpdate) return
+    items.value = items.value.map((item) =>
+      item.type === 'folder' && sizes[item.id] !== undefined
+        ? { ...item, size: sizes[item.id] }
+        : item
+    )
+  } catch {
+    // 忽略目录大小获取失败，大小列继续显示为 '-'
+  }
 }
 
 function copySelected(cut: boolean): void {

@@ -589,7 +589,7 @@ function onRootDrop(event: DragEvent): void {
           v-on="rowHandlers(row.original)"
         >
           <span class="tabular-nums">
-            {{ row.original.type === 'folder' ? '-' : formatSize(row.original.size) }}
+            {{ formatSize(row.original.size) }}
           </span>
         </div>
       </template>

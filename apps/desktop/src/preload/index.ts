@@ -23,6 +23,8 @@ const api = {
   logout: (): Promise<void> => ipcRenderer.invoke('auth:logout'),
   listFiles: (folderId: string | null): Promise<DriveItem[]> =>
     ipcRenderer.invoke('drive:list', folderId),
+  folderSizes: (folderIds: string[]): Promise<Record<string, number>> =>
+    ipcRenderer.invoke('drive:folder-sizes', folderIds),
   deleteFiles: (fileIds: string[]): Promise<string[]> =>
     ipcRenderer.invoke('drive:delete', fileIds),
   listTrashFiles: (): Promise<DriveItem[]> => ipcRenderer.invoke('drive:trash:list'),
