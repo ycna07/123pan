@@ -221,6 +221,15 @@ async function fetchTrashItems(): Promise<DriveItem[]> {
   )
 }
 
+/** 全盘搜索：searchData 会无视 parentFileId，在整个网盘中查找（单次请求） */
+async function searchDriveFiles(keyword: string): Promise<DriveItem[]> {
+  const sdk = getSdk()
+  if (!sdk) throw new Error('未登录或登录已过期，请重新登录')
+
+  const response = await sdk.file.searchFiles({ keyword, limit: PAGE_SIZE })
+  return response.data.fileList.map(toDriveItem)
+}
+
 function toFolderId(folderId: string | null, label: string): number {
   const id = folderId === null ? 0 : Number(folderId)
   if (!Number.isInteger(id) || id < 0) {
@@ -288,6 +297,12 @@ export function registerDriveHandlers(): void {
 
   registerHandler('drive:list', (_event, folderId: string | null) => {
     return fetchFolderItems(toFolderId(folderId, '目录 ID'))
+  })
+
+  registerHandler('drive:search', (_event, keyword: string) => {
+    const trimmed = (keyword ?? '').trim()
+    if (!trimmed) return []
+    return searchDriveFiles(trimmed)
   })
 
   // 直接调用 /api/file/detail 获取目录递归大小，无需本地遍历目录树

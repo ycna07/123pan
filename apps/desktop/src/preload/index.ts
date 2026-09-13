@@ -27,6 +27,8 @@ const api = {
   logoutAll: (): Promise<unknown> => ipcRenderer.invoke('auth:logout-all'),
   listFiles: (folderId: string | null): Promise<DriveItem[]> =>
     ipcRenderer.invoke('drive:list', folderId),
+  searchFiles: (keyword: string): Promise<DriveItem[]> =>
+    ipcRenderer.invoke('drive:search', keyword),
   folderSizes: (folderIds: string[]): Promise<Record<string, number>> =>
     ipcRenderer.invoke('drive:folder-sizes', folderIds),
   deleteFiles: (fileIds: string[]): Promise<string[]> =>

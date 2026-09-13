@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useToast } from '@nuxt/ui/composables'
 import type { DropdownMenuItem } from '@nuxt/ui'
 import type { AuthAccount, AuthStatus, DriveItem, StorageUsage } from '@123pan/shared-types'
@@ -245,6 +245,7 @@ function resetDriveState(): void {
   clipboard.value = null
   loadedFolderKeys.clear()
   loadingFolderKeys.clear()
+  clearSearch()
 }
 
 async function handleSwitchAccount(target: string): Promise<void> {
@@ -294,6 +295,44 @@ function showError(error: unknown, fallback: string): void {
     color: 'error',
     icon: 'i-lucide-triangle-alert'
   })
+}
+
+/** 全盘搜索结果；为空表示非搜索状态 */
+const searchResults = ref<DriveItem[] | null>(null)
+const searching = ref(false)
+let searchDebounce: ReturnType<typeof setTimeout> | null = null
+
+async function runSearch(keyword: string): Promise<void> {
+  searching.value = true
+  try {
+    const results = await window.api.searchFiles(keyword)
+    if (search.value.trim() === keyword) searchResults.value = results
+  } catch (error) {
+    showError(error, '搜索失败')
+  } finally {
+    if (search.value.trim() === keyword) searching.value = false
+  }
+}
+
+watch(search, (value) => {
+  if (searchDebounce) clearTimeout(searchDebounce)
+  const keyword = value.trim()
+  if (!keyword) {
+    searchResults.value = null
+    searching.value = false
+    return
+  }
+  searchDebounce = setTimeout(() => {
+    void runSearch(keyword)
+  }, 350)
+  searching.value = true
+})
+
+function clearSearch(): void {
+  if (searchDebounce) clearTimeout(searchDebounce)
+  search.value = ''
+  searchResults.value = null
+  searching.value = false
 }
 
 async function loadFolder(folderId: string | null): Promise<void> {
@@ -430,6 +469,7 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 function handleOpenFolder(folderId: string): void {
+  clearSearch()
   void loadFolder(folderId)
 }
 
@@ -1218,6 +1258,8 @@ onBeforeUnmount(() => {
             :items="items"
             :loading="loading"
             :clipboard="clipboard"
+            :search-results="searchResults"
+            :searching="searching"
             @open-folder="handleOpenFolder"
             @folder-change="handleFolderChange"
             @selection-change="handleSelectionChange"

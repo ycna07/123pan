@@ -427,6 +427,46 @@ export class FileModule {
   }
 
   /**
+   * 全盘搜索文件/目录（一次请求返回结果，`SearchData` 会忽略 parentFileId 在整个网盘查找）
+   *
+   * 对齐网页端搜索请求：`event=homeListFile`、`operateType=2`。
+   *
+   * @param params.keyword 搜索关键字
+   * @param params.limit 返回条数，最多 100
+   */
+  async searchFiles(params: {
+    /** 搜索关键字 */
+    keyword: string
+    /** 返回条数，最多 100 */
+    limit?: number
+  }): Promise<ApiResponse<GetFileListResponse>> {
+    const result = await this.httpClient.get<{
+      Next?: number | string
+      InfoList?: any[]
+    }>('/api/file/list/new', {
+      driveId: 0,
+      limit: Math.min(params.limit ?? 100, 100),
+      next: 0,
+      orderDirection: 'desc',
+      parentFileId: 0,
+      trashed: false,
+      SearchData: params.keyword,
+      Page: 1,
+      OnlyLookAbnormalFile: 0,
+      event: 'homeListFile',
+      operateType: 2
+    })
+
+    return {
+      ...result,
+      data: {
+        lastFileId: toNumber(result.data?.Next, -1),
+        fileList: (result.data?.InfoList || []).map(mapNormalFileItem)
+      }
+    }
+  }
+
+  /**
    * 获取文件或目录的详情统计（文件数、目录数、总大小）。
    * 目录会递归统计其下所有内容，因此可直接当作「文件夹大小」使用。
    *

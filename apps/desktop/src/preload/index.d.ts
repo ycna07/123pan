@@ -28,6 +28,7 @@ declare global {
       logout(): Promise<AuthStatus>
       logoutAll(): Promise<AuthStatus>
       listFiles(folderId: string | null): Promise<DriveItem[]>
+      searchFiles(keyword: string): Promise<DriveItem[]>
       folderSizes(folderIds: string[]): Promise<Record<string, number>>
       deleteFiles(fileIds: string[]): Promise<string[]>
       listTrashFiles(): Promise<DriveItem[]>

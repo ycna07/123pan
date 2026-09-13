@@ -9,6 +9,9 @@ const props = defineProps<{
   items: DriveItem[]
   loading?: boolean
   clipboard?: { op: 'copy' | 'cut'; ids: string[] } | null
+  /** 全盘搜索结果；非空时表格展示搜索结果而非当前目录 */
+  searchResults?: DriveItem[] | null
+  searching?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -124,15 +127,15 @@ const breadcrumbs = computed(() => {
   return crumbs
 })
 
-const visibleItems = computed(() =>
-  props.items.filter((item) => item.parentId === currentFolderId.value)
-)
+const searchKeyword = computed(() => search.value.trim())
 
-const filteredItems = computed(() => {
-  const keyword = search.value.trim().toLowerCase()
-  if (!keyword) return visibleItems.value
-  return visibleItems.value.filter((item) => item.name.toLowerCase().includes(keyword))
+/** 搜索模式展示全盘结果；否则展示当前目录（props.items 累计了多个已加载目录） */
+const visibleItems = computed(() => {
+  if (searchKeyword.value) return props.searchResults ?? []
+  return props.items.filter((item) => item.parentId === currentFolderId.value)
 })
+
+const filteredItems = computed(() => visibleItems.value)
 
 const selectedCount = computed(() => Object.values(rowSelection.value).filter(Boolean).length)
 
@@ -501,7 +504,16 @@ function onRootDrop(event: DragEvent): void {
     </Teleport>
 
     <div class="flex items-center justify-between gap-4 border-b border-default px-4 py-2">
-      <nav class="flex min-w-0 items-center" aria-label="面包屑">
+      <div v-if="searchKeyword" class="flex min-w-0 items-center gap-1.5 text-sm">
+        <UIcon
+          :name="searching ? 'i-lucide-loader-circle' : 'i-lucide-search'"
+          class="size-4 shrink-0 text-muted"
+          :class="searching ? 'animate-spin' : ''"
+        />
+        <span class="text-muted">全盘搜索</span>
+        <span class="truncate font-medium text-highlighted">「{{ searchKeyword }}」</span>
+      </div>
+      <nav v-else class="flex min-w-0 items-center" aria-label="面包屑">
         <button
           v-for="(crumb, index) in breadcrumbs"
           :key="crumb.id ?? 'root'"
@@ -630,12 +642,13 @@ function onRootDrop(event: DragEvent): void {
       <template #empty>
         <div class="flex flex-col items-center gap-2 py-16 text-muted">
           <UIcon
-            :name="loading ? 'i-lucide-loader-circle' : 'i-lucide-folder-open'"
+            :name="loading || searching ? 'i-lucide-loader-circle' : 'i-lucide-folder-open'"
             class="size-10 text-dimmed"
-            :class="loading ? 'animate-spin' : ''"
+            :class="loading || searching ? 'animate-spin' : ''"
           />
-          <p v-if="loading">正在加载文件列表…</p>
-          <p v-else>{{ search ? '没有找到匹配的文件' : '此文件夹为空' }}</p>
+          <p v-if="loading || searching">正在加载文件列表…</p>
+          <p v-else-if="searchKeyword">没有找到匹配的文件</p>
+          <p v-else>此文件夹为空</p>
         </div>
       </template>
     </UTable>
