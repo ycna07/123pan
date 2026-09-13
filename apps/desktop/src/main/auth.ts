@@ -4,7 +4,23 @@ import { readFile, rm, writeFile } from 'fs/promises'
 import { Pan123SDK } from '@123pan/api-sdk'
 import type { AuthStatus, LoginCredentials, QrLoginState } from '@123pan/shared-types'
 
-interface StoredToken {
+interface StoredAccount {
+  account: string
+  nickname?: string
+  avatar?: string
+  token: string
+  encrypted: boolean
+  savedAt: number
+}
+
+interface StoredAuthFile {
+  version: 2
+  activeAccount: string | null
+  accounts: StoredAccount[]
+}
+
+/** 旧版单账户文件格式，读取时自动迁移 */
+interface LegacyStoredToken {
   account: string
   nickname?: string
   avatar?: string
@@ -20,9 +36,8 @@ interface AuthProfile {
 }
 
 let sdk: Pan123SDK | null = null
-let account: string | null = null
-let nickname: string | null = null
-let avatar: string | null = null
+let accounts = new Map<string, StoredAccount>()
+let activeAccount: string | null = null
 
 const JWT_PATTERN = /eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g
 
@@ -43,7 +58,7 @@ function encryptToken(token: string): { token: string; encrypted: boolean } {
   return { token, encrypted: false }
 }
 
-function decryptToken(stored: StoredToken): string | null {
+function decryptToken(stored: StoredAccount): string | null {
   if (!stored.encrypted) return stored.token
   if (!safeStorage.isEncryptionAvailable()) return null
   try {
@@ -53,19 +68,58 @@ function decryptToken(stored: StoredToken): string | null {
   }
 }
 
-async function persistToken(profile: AuthProfile, token: string): Promise<void> {
-  const payload: StoredToken = {
-    account: profile.account,
-    ...(profile.nickname && { nickname: profile.nickname }),
-    ...(profile.avatar && { avatar: profile.avatar }),
-    ...encryptToken(token),
-    savedAt: Date.now()
+/** 读取账户文件，并兼容迁移旧版单账户格式 */
+async function readAuthFile(): Promise<{ file: StoredAuthFile; needsRewrite: boolean }> {
+  try {
+    const raw = await readFile(tokenFilePath(), 'utf-8')
+    const parsed = JSON.parse(raw) as StoredAuthFile & LegacyStoredToken
+    if (Array.isArray(parsed.accounts)) {
+      return {
+        file: {
+          version: 2,
+          activeAccount: parsed.activeAccount ?? null,
+          accounts: parsed.accounts.filter((entry) => entry?.account && entry?.token)
+        },
+        needsRewrite: false
+      }
+    }
+    if (parsed?.token && parsed?.account) {
+      return {
+        file: { version: 2, activeAccount: parsed.account, accounts: [parsed] },
+        needsRewrite: true
+      }
+    }
+  } catch {
+    /* 文件不存在或损坏 */
+  }
+  return { file: { version: 2, activeAccount: null, accounts: [] }, needsRewrite: false }
+}
+
+async function persistAuthFile(): Promise<void> {
+  if (accounts.size === 0) {
+    await rm(tokenFilePath(), { force: true })
+    return
+  }
+  const payload: StoredAuthFile = {
+    version: 2,
+    activeAccount,
+    accounts: [...accounts.values()]
   }
   await writeFile(tokenFilePath(), JSON.stringify(payload, null, 2), 'utf-8')
 }
 
-async function clearPersistedToken(): Promise<void> {
-  await rm(tokenFilePath(), { force: true })
+/** 新增或更新一个账户（以 key 作为唯一标识），并保留既有资料 */
+function upsertAccount(key: string, profile: AuthProfile, token: string): void {
+  const existing = accounts.get(key)
+  const nickname = profile.nickname ?? existing?.nickname
+  const avatar = profile.avatar ?? existing?.avatar
+  accounts.set(key, {
+    account: key,
+    ...(nickname ? { nickname } : {}),
+    ...(avatar ? { avatar } : {}),
+    ...encryptToken(token),
+    savedAt: Date.now()
+  })
 }
 
 function createSdkWithToken(token: string): Pan123SDK {
@@ -114,31 +168,49 @@ async function validateToken(token: string): Promise<AuthProfile | null> {
   }
 }
 
-export async function initAuth(): Promise<void> {
+/** 尝试用某个账户的 token 建立 SDK 并校验；失败时移除该账户 */
+async function activateAccount(key: string): Promise<boolean> {
+  const stored = accounts.get(key)
+  if (!stored) return false
+  const token = decryptToken(stored)
+  if (!token) {
+    accounts.delete(key)
+    await persistAuthFile()
+    return false
+  }
+  const instance = createSdkWithToken(token)
   try {
-    const raw = await readFile(tokenFilePath(), 'utf-8')
-    const stored = JSON.parse(raw) as StoredToken
-    if (!stored.token) return
-    const token = decryptToken(stored)
-    if (!token) {
-      await clearPersistedToken()
-      return
-    }
-    const instance = createSdkWithToken(token)
     const tokenInfo = await instance.getTokenInfo()
     if (!tokenInfo || tokenInfo.expiresAt <= Date.now()) {
-      await clearPersistedToken()
-      return
+      accounts.delete(key)
+      await persistAuthFile()
+      return false
     }
-    sdk = instance
-    account = stored.account
-    nickname = stored.nickname ?? null
-    avatar = stored.avatar ?? null
   } catch {
-    sdk = null
-    account = null
-    nickname = null
-    avatar = null
+    return false
+  }
+  sdk = instance
+  activeAccount = key
+  return true
+}
+
+export async function initAuth(): Promise<void> {
+  const { file, needsRewrite } = await readAuthFile()
+  accounts = new Map(file.accounts.map((entry) => [entry.account, entry]))
+  const preferred =
+    file.activeAccount && accounts.has(file.activeAccount) ? file.activeAccount : null
+  const order = preferred ? [preferred, ...accounts.keys()] : [...accounts.keys()]
+  activeAccount = null
+  sdk = null
+  for (const key of order) {
+    if (await activateAccount(key)) break
+  }
+  if (
+    needsRewrite ||
+    accounts.size !== file.accounts.length ||
+    file.activeAccount !== activeAccount
+  ) {
+    await persistAuthFile()
   }
 }
 
@@ -147,19 +219,27 @@ export function getSdk(): Pan123SDK | null {
 }
 
 export function getAuthStatus(): AuthStatus {
+  const active = activeAccount ? accounts.get(activeAccount) : null
   return {
-    authenticated: !!sdk,
-    ...(account && { account }),
-    ...(nickname && { nickname }),
-    ...(avatar && { avatar })
+    authenticated: !!sdk && !!active,
+    ...(active?.account && { account: active.account }),
+    ...(active?.nickname && { nickname: active.nickname }),
+    ...(active?.avatar && { avatar: active.avatar }),
+    accounts: [...accounts.values()].map((entry) => ({
+      account: entry.account,
+      ...(entry.nickname && { nickname: entry.nickname }),
+      ...(entry.avatar && { avatar: entry.avatar }),
+      active: entry.account === activeAccount
+    }))
   }
 }
 
-function applyLogin(profile: AuthProfile, instance: Pan123SDK): void {
+/** 登录/切换成功后设为当前账户并持久化 */
+async function applyLogin(profile: AuthProfile, instance: Pan123SDK, token: string): Promise<void> {
+  upsertAccount(profile.account, profile, token)
   sdk = instance
-  account = profile.account
-  nickname = profile.nickname ?? null
-  avatar = profile.avatar ?? null
+  activeAccount = profile.account
+  await persistAuthFile()
 }
 
 function broadcastLoginSuccess(): void {
@@ -220,8 +300,7 @@ async function loginWithPassword(credentials: LoginCredentials): Promise<AuthSta
       throw new Error('登录失败，未获取到有效凭证')
     }
     const profile = await fetchProfile(instance, passport)
-    await persistToken(profile, tokenInfo.accessToken)
-    applyLogin(profile, instance)
+    await applyLogin(profile, instance, tokenInfo.accessToken)
     broadcastLoginSuccess()
     return getAuthStatus()
   } catch (error) {
@@ -241,8 +320,7 @@ async function loginWithCookie(raw: string): Promise<AuthStatus> {
     const profile = await validateToken(token)
     if (profile) {
       const instance = createSdkWithToken(token)
-      await persistToken(profile, token)
-      applyLogin(profile, instance)
+      await applyLogin(profile, instance, token)
       broadcastLoginSuccess()
       return getAuthStatus()
     }
@@ -284,8 +362,7 @@ async function pollQrLogin(): Promise<void> {
     case 'success': {
       stopQrPolling()
       const profile = await fetchProfile(instance, '扫码登录')
-      await persistToken(profile, result.token)
-      applyLogin(profile, instance)
+      await applyLogin(profile, instance, result.token)
       broadcastLoginSuccess()
       break
     }
@@ -313,17 +390,49 @@ async function startQrLogin(): Promise<{ qrUrl: string }> {
   return { qrUrl: session.qrUrl }
 }
 
-async function logout(): Promise<void> {
-  stopQrPolling()
-  try {
-    sdk?.clearAuth()
-  } finally {
-    sdk = null
-    account = null
-    nickname = null
-    avatar = null
-    await clearPersistedToken()
+/** 切换当前账户；token 失效会移除该账户，网络错误则保留 */
+async function switchAccount(key: string): Promise<AuthStatus> {
+  if (key === activeAccount && sdk) return getAuthStatus()
+  if (!accounts.has(key)) throw new Error('账户不存在')
+  const stored = accounts.get(key)!
+  const token = decryptToken(stored)
+  if (!token) {
+    accounts.delete(key)
+    await persistAuthFile()
+    throw new Error('该账户凭证已失效，请重新登录')
   }
+  if (!(await activateAccount(key))) {
+    if (!accounts.has(key)) throw new Error('该账户登录已过期，请重新登录')
+    throw new Error('无法连接服务器，请检查网络后重试')
+  }
+  upsertAccount(key, await fetchProfile(sdk!, stored.account), token)
+  await persistAuthFile()
+  return getAuthStatus()
+}
+
+/** 退出当前账户；若还有其他账户则自动切换到其中一个 */
+async function logout(): Promise<AuthStatus> {
+  stopQrPolling()
+  sdk?.clearAuth()
+  if (activeAccount) accounts.delete(activeAccount)
+  sdk = null
+  activeAccount = null
+  for (const key of accounts.keys()) {
+    if (await activateAccount(key)) break
+  }
+  await persistAuthFile()
+  return getAuthStatus()
+}
+
+/** 退出所有账户 */
+async function logoutAll(): Promise<AuthStatus> {
+  stopQrPolling()
+  sdk?.clearAuth()
+  sdk = null
+  activeAccount = null
+  accounts.clear()
+  await persistAuthFile()
+  return getAuthStatus()
 }
 
 export function registerAuthHandlers(): void {
@@ -334,5 +443,7 @@ export function registerAuthHandlers(): void {
   ipcMain.handle('auth:qr-start', () => startQrLogin())
   ipcMain.handle('auth:qr-stop', () => stopQrPolling())
   ipcMain.handle('auth:status', () => getAuthStatus())
+  ipcMain.handle('auth:switch', (_event, key: string) => switchAccount(key))
   ipcMain.handle('auth:logout', () => logout())
+  ipcMain.handle('auth:logout-all', () => logoutAll())
 }

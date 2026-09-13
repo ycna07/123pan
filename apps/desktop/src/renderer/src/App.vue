@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useToast } from '@nuxt/ui/composables'
 import type { DropdownMenuItem } from '@nuxt/ui'
-import type { AuthStatus, DriveItem, StorageUsage } from '@123pan/shared-types'
+import type { AuthAccount, AuthStatus, DriveItem, StorageUsage } from '@123pan/shared-types'
 import { formatSize } from '@renderer/utils/format'
 import { useAppColorMode } from '@renderer/utils/theme'
 import FileTable from '@renderer/components/drive/FileTable.vue'
@@ -28,6 +28,8 @@ const authed = ref<boolean | null>(null)
 const account = ref('')
 const nickname = ref('')
 const avatar = ref('')
+const authAccounts = ref<AuthAccount[]>([])
+const addingAccount = ref(false)
 const search = ref('')
 const items = ref<DriveItem[]>([])
 const loading = ref(false)
@@ -156,52 +158,125 @@ const navItems = computed(() => [
   }
 ])
 
-const userMenuItems = computed<DropdownMenuItem[]>(() => [
-  {
-    label: '外观',
-    icon: 'i-lucide-palette',
-    children: [
-      {
-        label: '浅色',
-        type: 'checkbox',
-        checked: preference.value === 'light',
-        onSelect: () => setColorMode('light')
-      },
-      {
-        label: '深色',
-        type: 'checkbox',
-        checked: preference.value === 'dark',
-        onSelect: () => setColorMode('dark')
-      },
-      {
-        label: '跟随系统',
-        type: 'checkbox',
-        checked: preference.value === 'auto',
-        onSelect: () => setColorMode('auto')
+const userMenuItems = computed<DropdownMenuItem[]>(() => {
+  const accountItems: DropdownMenuItem[] = authAccounts.value.length
+    ? [
+        { type: 'label', label: '账户' },
+        ...authAccounts.value.map((entry) => ({
+          label: entry.nickname || entry.account,
+          icon: 'i-lucide-user',
+          type: 'checkbox' as const,
+          checked: entry.active,
+          onSelect: () => {
+            void handleSwitchAccount(entry.account)
+          }
+        })),
+        { type: 'separator' }
+      ]
+    : []
+  return [
+    ...accountItems,
+    {
+      label: '添加账户',
+      icon: 'i-lucide-user-plus',
+      onSelect: () => {
+        addingAccount.value = true
       }
-    ]
-  },
-  {
-    label: '退出登录',
-    icon: 'i-lucide-log-out',
-    onSelect: async () => {
-      await window.api.logout()
-      account.value = ''
-      nickname.value = ''
-      avatar.value = ''
-      items.value = []
-      usage.value = null
-      loadedFolderKeys.clear()
-      authed.value = false
+    },
+    {
+      label: '外观',
+      icon: 'i-lucide-palette',
+      children: [
+        {
+          label: '浅色',
+          type: 'checkbox',
+          checked: preference.value === 'light',
+          onSelect: () => setColorMode('light')
+        },
+        {
+          label: '深色',
+          type: 'checkbox',
+          checked: preference.value === 'dark',
+          onSelect: () => setColorMode('dark')
+        },
+        {
+          label: '跟随系统',
+          type: 'checkbox',
+          checked: preference.value === 'auto',
+          onSelect: () => setColorMode('auto')
+        }
+      ]
+    },
+    { type: 'separator' },
+    {
+      label: '退出当前账户',
+      icon: 'i-lucide-log-out',
+      onSelect: () => {
+        void handleLogout()
+      }
+    },
+    {
+      label: '退出所有账户',
+      icon: 'i-lucide-log-out',
+      color: 'error',
+      onSelect: () => {
+        void handleLogoutAll()
+      }
     }
-  }
-])
+  ]
+})
 
 function applyAuthStatus(status: AuthStatus): void {
   account.value = status.account ?? ''
   nickname.value = status.nickname ?? ''
   avatar.value = status.avatar ?? ''
+  authAccounts.value = status.accounts ?? []
   authed.value = status.authenticated
+  if (status.authenticated) addingAccount.value = false
+}
+
+function resetDriveState(): void {
+  items.value = []
+  usage.value = null
+  currentFolderId.value = null
+  selectedIds.value = []
+  clipboard.value = null
+  loadedFolderKeys.clear()
+  loadingFolderKeys.clear()
+}
+
+async function handleSwitchAccount(target: string): Promise<void> {
+  try {
+    applyAuthStatus(await window.api.switchAccount(target))
+    resetDriveState()
+    void loadFolder(null)
+    loadUsage()
+  } catch (error) {
+    showError(error, '切换账户失败')
+  }
+}
+
+async function handleLogout(): Promise<void> {
+  try {
+    const status = await window.api.logout()
+    applyAuthStatus(status)
+    resetDriveState()
+    if (status.authenticated) {
+      void loadFolder(null)
+      loadUsage()
+    }
+  } catch (error) {
+    showError(error, '退出登录失败')
+  }
+}
+
+async function handleLogoutAll(): Promise<void> {
+  try {
+    applyAuthStatus(await window.api.logoutAll())
+    resetDriveState()
+  } catch (error) {
+    showError(error, '退出登录失败')
+  }
 }
 
 /** 去掉 Electron IPC 包装（Error invoking remote method '...': Error: xxx），只保留业务消息 */
@@ -800,6 +875,7 @@ function handleAuthenticated(status: AuthStatus): void {
   applyAuthStatus(status)
   const displayName = status.nickname || status.account || '用户'
   toast.add({ title: `欢迎回来，${displayName}`, icon: 'i-lucide-party-popper' })
+  resetDriveState()
   void loadFolder(null)
   loadUsage()
 }
@@ -825,6 +901,7 @@ onMounted(async () => {
     applyAuthStatus(status)
     const displayName = status.nickname || status.account || '用户'
     toast.add({ title: `欢迎回来，${displayName}`, icon: 'i-lucide-party-popper' })
+    resetDriveState()
     void loadFolder(null)
     loadUsage()
   })
@@ -852,7 +929,12 @@ onBeforeUnmount(() => {
 
 <template>
   <UApp>
-    <LoginForm v-if="authed === false" @authenticated="handleAuthenticated" />
+    <LoginForm
+      v-if="authed === false || addingAccount"
+      :cancelable="addingAccount"
+      @authenticated="handleAuthenticated"
+      @cancel="addingAccount = false"
+    />
 
     <div v-else-if="authed === true" class="flex h-screen bg-default text-default">
       <aside

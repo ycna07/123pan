@@ -21,7 +21,9 @@ const api = {
   qrStart: (): Promise<{ qrUrl: string }> => ipcRenderer.invoke('auth:qr-start'),
   qrStop: (): Promise<void> => ipcRenderer.invoke('auth:qr-stop'),
   getAuthStatus: (): Promise<unknown> => ipcRenderer.invoke('auth:status'),
-  logout: (): Promise<void> => ipcRenderer.invoke('auth:logout'),
+  switchAccount: (account: string): Promise<unknown> => ipcRenderer.invoke('auth:switch', account),
+  logout: (): Promise<unknown> => ipcRenderer.invoke('auth:logout'),
+  logoutAll: (): Promise<unknown> => ipcRenderer.invoke('auth:logout-all'),
   listFiles: (folderId: string | null): Promise<DriveItem[]> =>
     ipcRenderer.invoke('drive:list', folderId),
   folderSizes: (folderIds: string[]): Promise<Record<string, number>> =>

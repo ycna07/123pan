@@ -5,7 +5,9 @@ import type { AuthStatus, QrLoginState } from '@123pan/shared-types'
 import { useAppColorMode } from '@renderer/utils/theme'
 import QRCode from 'qrcode'
 
-const emit = defineEmits<{ authenticated: [status: AuthStatus] }>()
+const props = defineProps<{ cancelable?: boolean }>()
+
+const emit = defineEmits<{ authenticated: [status: AuthStatus]; cancel: [] }>()
 
 const { isDark, toggle: toggleColorMode } = useAppColorMode()
 
@@ -114,6 +116,16 @@ async function submitLogin(action: () => Promise<AuthStatus>): Promise<void> {
 <template>
   <div class="relative flex h-screen items-center justify-center bg-default px-4">
     <UButton
+      v-if="props.cancelable"
+      icon="i-lucide-arrow-left"
+      color="neutral"
+      variant="ghost"
+      size="sm"
+      class="absolute top-4 left-4"
+      aria-label="返回"
+      @click="emit('cancel')"
+    />
+    <UButton
       :icon="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"
       color="neutral"
       variant="ghost"
@@ -125,7 +137,9 @@ async function submitLogin(action: () => Promise<AuthStatus>): Promise<void> {
     <div class="w-full max-w-sm rounded-lg border border-default bg-elevated/40 p-8">
       <div class="mb-6 flex flex-col items-center gap-2">
         <UIcon name="i-lucide-cloud" class="size-10 text-primary" />
-        <h1 class="text-lg font-semibold text-highlighted">登录 123云盘</h1>
+        <h1 class="text-lg font-semibold text-highlighted">
+          {{ props.cancelable ? '添加账户' : '登录 123云盘' }}
+        </h1>
       </div>
 
       <UAlert

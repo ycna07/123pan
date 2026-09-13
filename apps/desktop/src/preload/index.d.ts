@@ -23,7 +23,9 @@ declare global {
       qrStart(): Promise<{ qrUrl: string }>
       qrStop(): Promise<void>
       getAuthStatus(): Promise<AuthStatus>
-      logout(): Promise<void>
+      switchAccount(account: string): Promise<AuthStatus>
+      logout(): Promise<AuthStatus>
+      logoutAll(): Promise<AuthStatus>
       listFiles(folderId: string | null): Promise<DriveItem[]>
       folderSizes(folderIds: string[]): Promise<Record<string, number>>
       deleteFiles(fileIds: string[]): Promise<string[]>
