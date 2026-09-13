@@ -216,6 +216,12 @@ try {
 
 欢迎提交 Issue 和 Pull Request！
 
+## 致谢
+
+感谢 [ChenyangGao](https://github.com/ChenyangGao) 的开源项目 [p123client](https://github.com/ChenyangGao/p123client)（MIT 许可）——它全面封装了 123 网盘的 web / app / open 接口，本 SDK 在梳理与验证部分接口（如目录统计 `/api/file/detail`、分享列表 `/api/share/list`）时参考了该项目。
+
+详见 [NOTICE.md](./NOTICE.md)。
+
 ## 许可证
 
 本项目以 [GNU General Public License v3.0](./LICENSE) 发布。

@@ -33,6 +33,26 @@ Project: https://github.com/shijf/123pan-api-sdk
 
 本项目自身的发布与分发以 GPLv3 为准。
 
+## 致谢
+
+本 SDK 在梳理与验证部分接口时参考了开源项目 **p123client**（一个全面封装 123 网盘 web / app / open 接口的 Python 客户端），特此向原作者致谢。
+
+- 作者：**ChenyangGao**
+- 邮箱：<wosiwujm@gmail.com>
+- 主页：<https://github.com/ChenyangGao>
+- 项目：<https://github.com/ChenyangGao/p123client>
+- 许可证：MIT
+
+```
+MIT License
+
+Copyright (c) 2024 ChenyangGao <https://github.com/ChenyangGao>
+
+Project: https://github.com/ChenyangGao/p123client
+```
+
+例如目录统计接口 `GET /api/file/detail`、分享列表接口 `GET /api/share/list` 等，均参考了该项目的接口整理。感谢原作者的开源与分享。
+
 ## 项目性质
 
 - 本项目为**非官方实现**，与 123 云盘官方无任何关联
