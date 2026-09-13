@@ -118,6 +118,8 @@ const clipboard = ref<{ op: 'copy' | 'cut'; ids: string[] } | null>(null)
 /** FileTable 当前浏览的文件夹（粘贴目标） */
 const currentFolderId = ref<string | null>(null)
 const selectedIds = ref<string[]>([])
+/** 鼠标是否位于文件管理器中（仅此时才拦截 Ctrl+C/X/V 等文件快捷键） */
+const pointerInFiles = ref(false)
 
 /** 已加载过内容的文件夹 key（'' 表示根目录），用于刷新与去重 */
 const loadedFolderKeys = new Set<string>()
@@ -405,6 +407,7 @@ async function pasteClipboard(targetOverride?: string): Promise<void> {
 }
 
 function onKeydown(event: KeyboardEvent): void {
+  if (activeView.value !== 'files' || !pointerInFiles.value) return
   if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
   const target = event.target as HTMLElement | null
   if (
@@ -1204,7 +1207,12 @@ onBeforeUnmount(() => {
           </template>
         </div>
 
-        <div v-if="activeView === 'files'" class="min-h-0 flex-1 p-4">
+        <div
+          v-if="activeView === 'files'"
+          class="min-h-0 flex-1 p-4"
+          @mouseenter="pointerInFiles = true"
+          @mouseleave="pointerInFiles = false"
+        >
           <FileTable
             v-model:search="search"
             :items="items"
