@@ -278,6 +278,9 @@ function registerHandler<T extends unknown[]>(
 }
 
 export function registerDriveHandlers(): void {
+  loadTransfers()
+  app.on('before-quit', persistTransfersNow)
+
   registerHandler('clipboard:write', (_event, text: string) => {
     clipboard.writeText(String(text ?? ''))
     return true
@@ -598,7 +601,7 @@ export function registerDriveHandlers(): void {
   })
 
   registerHandler('drive:downloads:list', () =>
-    [...downloadTasks.values()].sort((a, b) => b.startedAt - a.startedAt)
+    [...downloadTasks.values()].sort((a, b) => b.startedAt - a.startedAt).map(serializeDownload)
   )
 
   registerHandler('drive:download-cancel', (_event, id: string) => {
@@ -630,6 +633,7 @@ export function registerDriveHandlers(): void {
     rmSync(part, { force: true })
     rmSync(state, { force: true })
     downloadTasks.delete(id)
+    schedulePersistTransfers()
     return true
   })
 
@@ -682,7 +686,7 @@ export function registerDriveHandlers(): void {
   })
 
   registerHandler('drive:uploads:list', () =>
-    [...uploadTasks.values()].sort((a, b) => b.startedAt - a.startedAt)
+    [...uploadTasks.values()].sort((a, b) => b.startedAt - a.startedAt).map(serializeUpload)
   )
 
   registerHandler('drive:upload-cancel', (_event, id: string) => {
@@ -696,6 +700,7 @@ export function registerDriveHandlers(): void {
     if (task.status === 'uploading') throw new Error('上传进行中，请先取消')
     if (task.etag && task.size) clearUploadState(`${task.etag}:${task.size}`)
     uploadTasks.delete(id)
+    schedulePersistTransfers()
     return true
   })
 
@@ -871,20 +876,8 @@ function broadcast(channel: string, payload: unknown): void {
 }
 
 function emitTask(task: DownloadTaskInternal): void {
-  const serialized: DownloadTask = {
-    id: task.id,
-    fileId: task.fileId,
-    name: task.name,
-    path: task.path,
-    size: task.size,
-    received: task.received,
-    status: task.status,
-    ...(task.error && { error: task.error }),
-    ...(task.resumable && { resumable: true }),
-    startedAt: task.startedAt,
-    ...(task.finishedAt !== undefined && { finishedAt: task.finishedAt })
-  }
-  broadcast('drive:download-updated', serialized)
+  broadcast('drive:download-updated', serializeDownload(task))
+  schedulePersistTransfers()
 }
 
 function emitProgress(task: DownloadTaskInternal): void {
@@ -1223,6 +1216,124 @@ interface UploadStateEntry {
 const uploadTasks = new Map<string, UploadTaskInternal>()
 const uploadAborters = new Map<string, AbortController>()
 
+// ---------- 传输记录持久化 ----------
+
+interface PersistedTransfers {
+  version: 1
+  downloads: DownloadTask[]
+  uploads: Array<UploadTask & { etag?: string; parentFolderId?: number }>
+}
+
+function transfersFilePath(): string {
+  return join(app.getPath('userData'), 'transfers.json')
+}
+
+function serializeDownload(task: DownloadTaskInternal): DownloadTask {
+  return {
+    id: task.id,
+    fileId: task.fileId,
+    name: task.name,
+    path: task.path,
+    size: task.size,
+    received: task.received,
+    status: task.status,
+    ...(task.error && { error: task.error }),
+    ...(task.resumable && { resumable: true }),
+    startedAt: task.startedAt,
+    ...(task.finishedAt !== undefined && { finishedAt: task.finishedAt })
+  }
+}
+
+function serializeUpload(
+  task: UploadTaskInternal
+): UploadTask & { etag?: string; parentFolderId?: number } {
+  return {
+    id: task.id,
+    name: task.name,
+    path: task.path,
+    size: task.size,
+    received: task.received,
+    status: task.status,
+    ...(task.error && { error: task.error }),
+    ...(task.resumable && { resumable: true }),
+    startedAt: task.startedAt,
+    ...(task.finishedAt !== undefined && { finishedAt: task.finishedAt }),
+    ...(task.etag && { etag: task.etag }),
+    ...(task.parentFolderId !== undefined && { parentFolderId: task.parentFolderId })
+  }
+}
+
+let persistTransfersTimer: NodeJS.Timeout | null = null
+
+function persistTransfersNow(): void {
+  if (persistTransfersTimer) {
+    clearTimeout(persistTransfersTimer)
+    persistTransfersTimer = null
+  }
+  const payload: PersistedTransfers = {
+    version: 1,
+    downloads: [...downloadTasks.values()].map(serializeDownload),
+    uploads: [...uploadTasks.values()].map(serializeUpload)
+  }
+  try {
+    writeFileSync(transfersFilePath(), JSON.stringify(payload))
+  } catch {
+    /* 无法写入时忽略，避免影响传输流程 */
+  }
+}
+
+/** 合并频繁的进度更新，最多约每秒落盘一次 */
+function schedulePersistTransfers(): void {
+  if (persistTransfersTimer) return
+  persistTransfersTimer = setTimeout(() => {
+    persistTransfersTimer = null
+    persistTransfersNow()
+  }, 1000)
+}
+
+/** 启动时恢复传输记录；上次退出时进行中的任务标记为失败（可续传时允许继续） */
+function loadTransfers(): void {
+  let data: PersistedTransfers | null = null
+  try {
+    data = JSON.parse(readFileSync(transfersFilePath(), 'utf-8')) as PersistedTransfers
+  } catch {
+    return
+  }
+  if (!data) return
+
+  for (const task of data.downloads ?? []) {
+    if (!task?.id) continue
+    if (task.status === 'downloading') {
+      const { part, state } = partPaths(task.path)
+      downloadTasks.set(task.id, {
+        ...task,
+        status: 'failed',
+        error: '应用已退出，可继续下载',
+        finishedAt: task.finishedAt ?? Date.now(),
+        resumable: existsSync(part) && existsSync(state)
+      })
+    } else {
+      downloadTasks.set(task.id, { ...task })
+    }
+  }
+
+  for (const task of data.uploads ?? []) {
+    if (!task?.id) continue
+    if (task.status === 'uploading') {
+      const key = task.etag && task.size ? `${task.etag}:${task.size}` : ''
+      uploadTasks.set(task.id, {
+        ...task,
+        status: 'failed',
+        error: '应用已退出，可继续上传',
+        finishedAt: task.finishedAt ?? Date.now(),
+        resumable: !!(key && loadUploadStates()[key]?.session)
+      })
+    } else {
+      uploadTasks.set(task.id, { ...task })
+    }
+  }
+}
+
 function uploadStatePath(): string {
   return join(app.getPath('userData'), 'upload-state.json')
 }
@@ -1245,19 +1356,8 @@ function clearUploadState(key: string): void {
 }
 
 function emitUploadTask(task: UploadTaskInternal): void {
-  const serialized: UploadTask = {
-    id: task.id,
-    name: task.name,
-    path: task.path,
-    size: task.size,
-    received: task.received,
-    status: task.status,
-    ...(task.error && { error: task.error }),
-    ...(task.resumable && { resumable: true }),
-    startedAt: task.startedAt,
-    ...(task.finishedAt !== undefined && { finishedAt: task.finishedAt })
-  }
-  broadcast('drive:upload-updated', serialized)
+  broadcast('drive:upload-updated', serializeUpload(task))
+  schedulePersistTransfers()
 }
 
 function emitUploadProgress(task: UploadTaskInternal): void {
