@@ -13,7 +13,11 @@
     "build:unpack": "pnpm -C apps/desktop build:unpack",
     "build:win": "pnpm -C apps/desktop build:win",
     "build:mac": "pnpm -C apps/desktop build:mac",
-    "build:linux": "pnpm -C apps/desktop build:linux"
+    "build:linux": "pnpm -C apps/desktop build:linux",
+    "build:linux:deb": "pnpm -C apps/desktop build:linux:deb",
+    "build:linux:pacman": "pnpm -C apps/desktop build:linux:pacman",
+    "build:linux:flatpak": "pnpm -C apps/desktop build:linux:flatpak",
+    "build:linux:appimage": "pnpm -C apps/desktop build:linux:appimage"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "3.0.0",

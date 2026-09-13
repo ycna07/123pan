@@ -2,6 +2,9 @@
   "name": "@123pan/desktop",
   "version": "1.0.0",
   "description": "An Electron application with Vue and TypeScript",
+  "author": "ycna07",
+  "homepage": "https://github.com/ycna07/123pan",
+  "desktopName": "123pan",
   "private": true,
   "main": "./out/main/index.js",
   "scripts": {
@@ -15,7 +18,11 @@
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux"
+    "build:linux": "npm run build && electron-builder --linux",
+    "build:linux:deb": "npm run build && electron-builder --linux deb",
+    "build:linux:pacman": "npm run build && electron-builder --linux pacman",
+    "build:linux:flatpak": "npm run build && electron-builder --linux flatpak",
+    "build:linux:appimage": "npm run build && electron-builder --linux AppImage"
   },
   "dependencies": {
     "@123pan/shared-types": "workspace:*",

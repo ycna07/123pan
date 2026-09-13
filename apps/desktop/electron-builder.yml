@@ -31,10 +31,28 @@ dmg:
 linux:
   target:
     - AppImage
-    - snap
     - deb
-  maintainer: electronjs.org
+    - pacman
+    - flatpak
+  executableName: 123pan
+  syncDesktopName: true
+  maintainer: 123pan <noreply@example.com>
+  vendor: 123pan
   category: Utility
+  synopsis: 123pan desktop client
+  description: Unofficial desktop client for 123pan (123云盘).
+deb:
+  compression: xz
+  artifactName: 123pan-${version}-${arch}.${ext}
+pacman:
+  compression: zstd
+  artifactName: 123pan-${version}-${arch}.pkg.tar.zst
+flatpak:
+  # 需要系统安装 flatpak、flatpak-builder，以及 org.freedesktop.Sdk /
+  # org.electronjs.Electron2.BaseApp 运行时（flatpak install flathub ...）
+  runtimeVersion: '24.08'
+  baseVersion: '24.08'
+  useWaylandFlags: true
 appImage:
   artifactName: 123pan-${version}.${ext}
 npmRebuild: false
