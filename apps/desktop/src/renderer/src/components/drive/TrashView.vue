@@ -187,7 +187,10 @@ onMounted(load)
       :columns="columns"
       :get-row-id="getRowId"
       :row-selection-options="{ enableRowSelection: true }"
-      :ui="{ tr: 'cursor-pointer' }"
+      :ui="{
+        thead: 'bg-default [&_tr]:border-b [&_tr]:border-default',
+        tr: 'cursor-pointer'
+      }"
       sticky
       class="min-h-0 flex-1"
       @click="
