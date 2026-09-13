@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
   AppSettings,
+  AppSettingsState,
   AuthStatus,
   DriveItem,
   DownloadProgress,
@@ -77,8 +78,8 @@ const api = {
     ipcRenderer.on('drive:download-progress', listener)
     return () => ipcRenderer.removeListener('drive:download-progress', listener)
   },
-  getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
-  updateSettings: (patch: Partial<AppSettings>): Promise<AppSettings> =>
+  getSettings: (): Promise<AppSettingsState> => ipcRenderer.invoke('settings:get'),
+  updateSettings: (patch: Partial<AppSettings>): Promise<AppSettingsState> =>
     ipcRenderer.invoke('settings:update', patch),
   chooseDownloadDir: (): Promise<string | null> =>
     ipcRenderer.invoke('settings:choose-download-dir'),

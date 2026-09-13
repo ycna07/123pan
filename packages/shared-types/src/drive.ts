@@ -98,3 +98,9 @@ export interface AppSettings {
   /** 下载线程数（并发连接数，1-8） */
   downloadThreads: number
 }
+
+/** 设置状态：在持久化设置之外附带只读的系统信息 */
+export interface AppSettingsState extends AppSettings {
+  /** 系统默认下载目录（只读，用于展示） */
+  systemDownloadDir: string
+}

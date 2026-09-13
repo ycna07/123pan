@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { app, dialog, ipcMain } from 'electron'
-import type { AppSettings } from '@123pan/shared-types'
+import type { AppSettings, AppSettingsState } from '@123pan/shared-types'
 
 const DEFAULTS: AppSettings = { downloadDir: null, askWhereToSave: true, downloadThreads: 4 }
 
@@ -37,6 +37,11 @@ export function getSettings(): AppSettings {
   return { ...settings }
 }
 
+/** 供渲染层展示：附带只读的系统默认下载目录 */
+export function getSettingsState(): AppSettingsState {
+  return { ...settings, systemDownloadDir: app.getPath('downloads') }
+}
+
 export function updateSettings(patch: Partial<AppSettings>): AppSettings {
   const next = { ...settings, ...patch }
   next.downloadThreads = clampThreads(next.downloadThreads)
@@ -46,9 +51,12 @@ export function updateSettings(patch: Partial<AppSettings>): AppSettings {
 }
 
 export function registerSettingsHandlers(): void {
-  ipcMain.handle('settings:get', () => getSettings())
+  ipcMain.handle('settings:get', () => getSettingsState())
 
-  ipcMain.handle('settings:update', (_event, patch: Partial<AppSettings>) => updateSettings(patch))
+  ipcMain.handle('settings:update', (_event, patch: Partial<AppSettings>) => {
+    updateSettings(patch)
+    return getSettingsState()
+  })
 
   ipcMain.handle('settings:choose-download-dir', async () => {
     const choice = await dialog.showOpenDialog({

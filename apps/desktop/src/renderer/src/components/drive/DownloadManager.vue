@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useToast } from '@nuxt/ui/composables'
-import type { AppSettings, DownloadTask, UploadTask } from '@123pan/shared-types'
+import type { AppSettingsState, DownloadTask, UploadTask } from '@123pan/shared-types'
 import { formatSize } from '@renderer/utils/format'
 
 const toast = useToast()
 
 const tasks = ref<DownloadTask[]>([])
 const uploads = ref<UploadTask[]>([])
-const settings = ref<AppSettings | null>(null)
+const settings = ref<AppSettingsState | null>(null)
 let removeUpdated: (() => void) | null = null
 let removeUploadUpdated: (() => void) | null = null
 
@@ -49,13 +49,13 @@ const percentOf = (task: DownloadTask): number =>
 async function chooseDir(): Promise<void> {
   const dir = await window.api.chooseDownloadDir()
   if (dir) {
-    settings.value = { ...(settings.value as AppSettings), downloadDir: dir }
+    settings.value = { ...(settings.value as AppSettingsState), downloadDir: dir }
     toast.add({ title: '默认下载目录已更新', description: dir, icon: 'i-lucide-folder-check' })
   }
 }
 
 async function toggleAsk(value: boolean): Promise<void> {
-  settings.value = { ...(settings.value as AppSettings), askWhereToSave: value }
+  settings.value = { ...(settings.value as AppSettingsState), askWhereToSave: value }
   await window.api.updateSettings({ askWhereToSave: value })
 }
 
@@ -91,7 +91,7 @@ const threadOptions = [1, 2, 3, 4, 6, 8]
 
 async function updateThreads(value: string | number): Promise<void> {
   const threads = Number(value)
-  settings.value = { ...(settings.value as AppSettings), downloadThreads: threads }
+  settings.value = { ...(settings.value as AppSettingsState), downloadThreads: threads }
   await window.api.updateSettings({ downloadThreads: threads })
 }
 
@@ -131,7 +131,7 @@ onBeforeUnmount(() => {
           <div class="min-w-0">
             <p class="text-sm font-medium text-highlighted">默认下载目录</p>
             <p class="truncate text-xs text-muted">
-              {{ settings.downloadDir || '系统默认下载目录' }}
+              {{ settings.downloadDir || settings.systemDownloadDir }}
             </p>
           </div>
           <UButton icon="i-lucide-folder-open" size="sm" variant="outline" @click="chooseDir">

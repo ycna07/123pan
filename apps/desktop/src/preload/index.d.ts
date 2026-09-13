@@ -1,6 +1,7 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
   AppSettings,
+  AppSettingsState,
   AuthStatus,
   DriveItem,
   DownloadProgress,
@@ -66,8 +67,8 @@ declare global {
       downloadFile(fileId: string, name: string, savePath?: string): Promise<unknown>
       copyDownloadLink(fileId: string): Promise<string>
       onDownloadProgress(callback: (progress: DownloadProgress) => void): () => void
-      getSettings(): Promise<AppSettings>
-      updateSettings(patch: Partial<AppSettings>): Promise<AppSettings>
+      getSettings(): Promise<AppSettingsState>
+      updateSettings(patch: Partial<AppSettings>): Promise<AppSettingsState>
       chooseDownloadDir(): Promise<string | null>
       downloadsList(): Promise<DownloadTask[]>
       cancelDownload(id: string): Promise<boolean>
