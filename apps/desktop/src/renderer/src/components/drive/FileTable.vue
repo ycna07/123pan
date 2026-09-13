@@ -128,6 +128,9 @@ const breadcrumbs = computed(() => {
 })
 
 const searchKeyword = computed(() => search.value.trim())
+/** 本地筛选：只作用于当前表格中已显示的文件，不发起请求 */
+const localSearch = ref('')
+const localKeyword = computed(() => localSearch.value.trim().toLowerCase())
 
 /** 搜索模式展示全盘结果；否则展示当前目录（props.items 累计了多个已加载目录） */
 const visibleItems = computed(() => {
@@ -135,7 +138,14 @@ const visibleItems = computed(() => {
   return props.items.filter((item) => item.parentId === currentFolderId.value)
 })
 
-const filteredItems = computed(() => visibleItems.value)
+const filteredItems = computed(() => {
+  if (!localKeyword.value) return visibleItems.value
+  return visibleItems.value.filter((item) => item.name.toLowerCase().includes(localKeyword.value))
+})
+
+watch(searchKeyword, () => {
+  localSearch.value = ''
+})
 
 const selectedCount = computed(() => Object.values(rowSelection.value).filter(Boolean).length)
 
@@ -187,6 +197,7 @@ function getRowId(row: DriveItem): string {
 function navigateTo(folderId: string | null): void {
   currentFolderId.value = folderId
   rowSelection.value = {}
+  localSearch.value = ''
   closeContextMenu()
   emit('folderChange', folderId)
 }
@@ -530,9 +541,28 @@ function onRootDrop(event: DragEvent): void {
           />
         </button>
       </nav>
-      <span class="shrink-0 text-xs text-muted">
-        {{ selectedCount > 0 ? `已选 ${selectedCount} 项 / ` : '' }}共 {{ filteredItems.length }} 项
-      </span>
+      <div class="flex shrink-0 items-center gap-3">
+        <UInput
+          v-model="localSearch"
+          icon="i-lucide-list-filter"
+          placeholder="筛选当前列表..."
+          size="sm"
+          class="w-44"
+        />
+        <span class="shrink-0 text-xs text-muted">
+          {{ selectedCount > 0 ? `已选 ${selectedCount} 项 / ` : '' }}共
+          {{ filteredItems.length }} 项
+        </span>
+        <UButton
+          v-if="localSearch"
+          icon="i-lucide-x"
+          size="sm"
+          color="neutral"
+          variant="ghost"
+          aria-label="清除筛选"
+          @click="localSearch = ''"
+        />
+      </div>
     </div>
 
     <UTable
