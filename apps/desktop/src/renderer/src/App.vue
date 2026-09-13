@@ -936,7 +936,7 @@ onBeforeUnmount(() => {
       @cancel="addingAccount = false"
     />
 
-    <div v-else-if="authed === true" class="flex h-screen bg-default text-default">
+    <div v-else-if="authed === true" class="isolate flex h-screen bg-default text-default">
       <aside
         class="relative hidden shrink-0 flex-col border-r border-default bg-elevated/50 lg:flex"
         :style="{ width: `${sidebarWidth}px` }"
